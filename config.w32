@@ -2,12 +2,9 @@
 // vim:ft=javascript
 
 // If your extension references something external, use ARG_WITH
-// ARG_WITH("jsonreader", "for jsonreader support", "no");
-
-// Otherwise, use ARG_ENABLE
-// ARG_ENABLE("jsonreader", "enable jsonreader support", "no");
+ARG_WITH("jsonreader", "for jsonreader support", "no");
 
 if (PHP_JSONREADER != "no") {
-	EXTENSION("jsonreader", "jsonreader.c");
+	EXTENSION("jsonreader", "jsonreader.c libvktor/vktor.c libvktor/vktor_unicode.c");
 }
 

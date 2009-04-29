@@ -31,35 +31,137 @@
 
 ZEND_DECLARE_MODULE_GLOBALS(jsonreader)
 
+static zend_object_handlers  jsonreader_obj_handlers;
+static zend_class_entry     *jsonreader_ce;
 
-/* {{{ jsonreader_functions[]
- *
- */
-/*
-const zend_function_entry jsonreader_functions[] = {
-	{NULL, NULL, NULL}
-};
-*/
+typedef struct _jsonreader_object { 
+	zend_object   std;
+	php_stream   *stream;
+	vktor_parser *parser;
+	zend_bool     close_stream;
+} jsonreader_object;
+
+static void 
+jsonreader_object_free_storage(void *object TSRMLS_DC) 
+{
+	jsonreader_object *intern = (jsonreader_object *) object;
+
+	zend_object_std_dtor(&intern->std TSRMLS_CC);
+
+	if (intern->parser) {
+		vktor_parser_free(intern->parser);
+	}
+
+	if (intern->stream && intern->close_stream) {
+		php_stream_close(intern->stream);
+	}
+
+	efree(object);
+}
+
+/* {{{ jsonreader_object_new */
+static zend_object_value 
+jsonreader_object_new(zend_class_entry *ce TSRMLS_DC) 
+{
+	zend_object_value  retval;
+	jsonreader_object *intern;
+
+	intern = ecalloc(1, sizeof(jsonreader_object));
+	zend_object_std_init(&(intern->std), ce TSRMLS_CC);
+	zend_hash_copy(intern->std.properties, &ce->default_properties, 
+		(copy_ctor_func_t) zval_add_ref, NULL, sizeof(zval *));
+
+	retval.handle = zend_objects_store_put(intern, 
+		(zend_objects_store_dtor_t) zend_objects_destroy_object, 
+		(zend_objects_free_object_storage_t) jsonreader_object_free_storage, 
+		NULL TSRMLS_CC);
+
+	retval.handlers = &jsonreader_obj_handlers;
+
+	return retval;
+}
 /* }}} */
 
-/* {{{ jsonreader_module_entry
- */
-zend_module_entry jsonreader_module_entry = {
-#if ZEND_MODULE_API_NO >= 20010901
-	STANDARD_MODULE_HEADER,
-#endif
-	"JSONReader",
-	NULL, //jsonreader_functions,
-	PHP_MINIT(jsonreader),
-	PHP_MSHUTDOWN(jsonreader),
-	NULL,
-	NULL,
-	PHP_MINFO(jsonreader),
-#if ZEND_MODULE_API_NO >= 20010901
-	"0.1", 
-#endif
-	STANDARD_MODULE_PROPERTIES
+static void jsonreader_reset(jsonreader_object *obj TSRMLS_DC)
+{
+	if (obj->parser) {
+		vktor_parser_free(obj->parser);
+	}
+	obj->parser = vktor_parser_init(JSONREADER_G(max_nesting_level));
+
+	if (obj->stream) {
+		php_stream_close(obj->stream);
+	}
+}
+
+PHP_METHOD(jsonreader, open)
+{
+	zval               *object, *arg;
+	jsonreader_object  *intern;
+	php_stream         *tmp_stream;
+	int                 options = ENFORCE_SAFE_MODE | REPORT_ERRORS;
+
+	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "z", &arg) == FAILURE) {
+		return;
+	}
+
+	object = getThis();
+	intern = (jsonreader_object *) zend_object_store_get_object(object TSRMLS_CC);
+
+	switch(Z_TYPE_P(arg)) {
+		case IS_STRING:
+			tmp_stream = php_stream_open_wrapper(Z_STRVAL_P(arg), "r", options, NULL);
+			intern->close_stream = TRUE;
+			break;
+
+		case IS_RESOURCE:
+			php_stream_from_zval(tmp_stream, &arg);
+			intern->close_stream = FALSE;
+			break;
+
+		default:
+			php_error_docref(NULL TSRMLS_CC, E_ERROR, 
+				"argument is expected to be a resource of type stream or a URI string, %s given",
+				zend_zval_type_name(arg));
+			RETURN_FALSE;
+			break;
+
+	}
+
+	if (intern->stream) {
+		jsonreader_reset(intern TSRMLS_CC);
+	}
+
+	intern->stream = tmp_stream;
+
+	RETURN_TRUE;
+}
+
+ZEND_BEGIN_ARG_INFO(arginfo_jsonreader_open, 0)
+	ZEND_ARG_INFO(0, URI)
+ZEND_END_ARG_INFO()
+
+static const zend_function_entry jsonreader_class_methods[] = {
+	PHP_ME(jsonreader, open, arginfo_jsonreader_open, ZEND_ACC_PUBLIC)
+	{NULL, NULL, NULL}
 };
+
+/* {{{ declare_jsonreader_class_entry
+ * 
+ */
+static void 
+declare_jsonreader_class_entry(TSRMLS_D)
+{
+	zend_class_entry ce;
+	
+	memcpy(&jsonreader_obj_handlers, zend_get_std_object_handlers(), 
+		sizeof(zend_object_handlers));
+	
+	INIT_CLASS_ENTRY(ce, "JSONReader", jsonreader_class_methods);
+	ce.create_object = jsonreader_object_new;
+
+	jsonreader_ce = zend_register_internal_class(&ce TSRMLS_CC);
+}
 /* }}} */
 
 #ifdef COMPILE_DL_JSONREADER
@@ -75,7 +177,7 @@ PHP_INI_END()
 
 /* {{{ php_jsonreader_init_globals
  */
-static void php_jsonreader_init_globals(zend_jsonreader_globals *jsonreader_globals)
+static PHP_GINIT_FUNCTION(jsonreader)
 {
 	jsonreader_globals->max_nesting_level = 64;
 }
@@ -86,6 +188,7 @@ static void php_jsonreader_init_globals(zend_jsonreader_globals *jsonreader_glob
 PHP_MINIT_FUNCTION(jsonreader)
 {
 	REGISTER_INI_ENTRIES();
+	declare_jsonreader_class_entry(TSRMLS_C);
 	return SUCCESS;
 }
 /* }}} */
@@ -109,6 +212,26 @@ PHP_MINFO_FUNCTION(jsonreader)
 
 	DISPLAY_INI_ENTRIES();
 }
+/* }}} */
+
+/* {{{ jsonreader_module_entry
+ */
+zend_module_entry jsonreader_module_entry = {
+	STANDARD_MODULE_HEADER,
+	"JSONReader",
+	NULL, //jsonreader_functions,
+	PHP_MINIT(jsonreader),
+	PHP_MSHUTDOWN(jsonreader),
+	NULL,
+	NULL,
+	PHP_MINFO(jsonreader),
+	"0.1",
+	PHP_MODULE_GLOBALS(jsonreader),
+	PHP_GINIT(jsonreader),
+	NULL,
+	NULL,
+	STANDARD_MODULE_PROPERTIES_EX
+};
 /* }}} */
 
 /*

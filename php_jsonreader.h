@@ -38,11 +38,7 @@ extern zend_module_entry jsonreader_module_entry;
 
 PHP_MINIT_FUNCTION(jsonreader);
 PHP_MSHUTDOWN_FUNCTION(jsonreader);
-// PHP_RINIT_FUNCTION(jsonreader);
-// PHP_RSHUTDOWN_FUNCTION(jsonreader);
 PHP_MINFO_FUNCTION(jsonreader);
-
-PHP_FUNCTION(confirm_jsonreader_compiled);	/* For testing, remove later. */
 
 ZEND_BEGIN_MODULE_GLOBALS(jsonreader)
 	long  max_nesting_level;
