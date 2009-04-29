@@ -12,7 +12,7 @@
   | obtain it through the world-wide-web, please send a note to          |
   | license@php.net so we can mail you a copy immediately.               |
   +----------------------------------------------------------------------+
-  | Author:                                                              |
+  | Author: Shahar Evron, shahar@prematureoptimization.org               |
   +----------------------------------------------------------------------+
 */
 
@@ -41,6 +41,10 @@ typedef struct _jsonreader_object {
 	zend_bool     close_stream;
 } jsonreader_object;
 
+/* {{{ jsonreader_object_free_storage 
+ * 
+ * C-level object destructor for JSONReader objects
+ */
 static void 
 jsonreader_object_free_storage(void *object TSRMLS_DC) 
 {
@@ -58,8 +62,13 @@ jsonreader_object_free_storage(void *object TSRMLS_DC)
 
 	efree(object);
 }
+/* }}} */
 
-/* {{{ jsonreader_object_new */
+/* {{{ jsonreader_object_new 
+ * 
+ * C-level constructor of JSONReader objects. Does not initialize the vktor parser - 
+ * this will be initialized when needed, by calling jsonreader_reset().
+ */
 static zend_object_value 
 jsonreader_object_new(zend_class_entry *ce TSRMLS_DC) 
 {
@@ -82,7 +91,14 @@ jsonreader_object_new(zend_class_entry *ce TSRMLS_DC)
 }
 /* }}} */
 
-static void jsonreader_reset(jsonreader_object *obj TSRMLS_DC)
+/* {{{ jsonreader_reset 
+ *
+ * Initialize or reset an internal jsonreader object struct. Will close & free
+ * any stream opened by the reader, and initialize the associated vktor parser 
+ * (and free the old parser, if exists)
+ */
+static void 
+jsonreader_reset(jsonreader_object *obj TSRMLS_DC)
 {
 	if (obj->parser) {
 		vktor_parser_free(obj->parser);
@@ -93,7 +109,14 @@ static void jsonreader_reset(jsonreader_object *obj TSRMLS_DC)
 		php_stream_close(obj->stream);
 	}
 }
+/* }}} */
 
+/* {{{ proto boolean JSONReader::open(mixed URI)
+
+   Opens the URI (any valid PHP stream URI) that JSONReader will open to read
+   from. Can accept either a URI as a string, or an already-open stream 
+   resource.
+*/
 PHP_METHOD(jsonreader, open)
 {
 	zval               *object, *arg;
@@ -111,12 +134,12 @@ PHP_METHOD(jsonreader, open)
 	switch(Z_TYPE_P(arg)) {
 		case IS_STRING:
 			tmp_stream = php_stream_open_wrapper(Z_STRVAL_P(arg), "r", options, NULL);
-			intern->close_stream = TRUE;
+			intern->close_stream = true;
 			break;
 
 		case IS_RESOURCE:
 			php_stream_from_zval(tmp_stream, &arg);
-			intern->close_stream = FALSE;
+			intern->close_stream = false;
 			break;
 
 		default:
@@ -136,15 +159,52 @@ PHP_METHOD(jsonreader, open)
 
 	RETURN_TRUE;
 }
+/* }}} */
 
+/* {{{ proto boolean JSONReader::close()
+
+   Close the currently open JSON stream and free related resources
+*/
+PHP_METHOD(jsonreader, close)
+{
+	zval              *object;
+	jsonreader_object *intern;
+
+	object = getThis();
+	intern = (jsonreader_object *) zend_object_store_get_object(object TSRMLS_CC);
+
+	// Close stream, if open
+	if (intern->stream) {
+		php_stream_close(intern->stream);
+		intern->stream = NULL;
+	}
+
+	// Free parser, if created
+	if (intern->parser) {
+		vktor_parser_free(intern->parser);
+		intern->parser = NULL;
+	}
+
+	RETURN_TRUE;
+}
+/* }}} */
+
+/* {{{ ARG_INFO */
 ZEND_BEGIN_ARG_INFO(arginfo_jsonreader_open, 0)
 	ZEND_ARG_INFO(0, URI)
 ZEND_END_ARG_INFO()
 
+ZEND_BEGIN_ARG_INFO(arginfo_jsonreader_close, 0)
+ZEND_END_ARG_INFO()
+/* }}} */
+
+/* {{{ zend_function_entry jsonreader_class_methods */
 static const zend_function_entry jsonreader_class_methods[] = {
 	PHP_ME(jsonreader, open, arginfo_jsonreader_open, ZEND_ACC_PUBLIC)
+	PHP_ME(jsonreader, close, arginfo_jsonreader_close, ZEND_ACC_PUBLIC)
 	{NULL, NULL, NULL}
 };
+/* }}} */
 
 /* {{{ declare_jsonreader_class_entry
  * 
@@ -175,7 +235,7 @@ PHP_INI_BEGIN()
 PHP_INI_END()
 /* }}} */
 
-/* {{{ php_jsonreader_init_globals
+/* {{{ PHP_GINIT_FUNCTION(jsonreader)
  */
 static PHP_GINIT_FUNCTION(jsonreader)
 {
