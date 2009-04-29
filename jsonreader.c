@@ -54,6 +54,8 @@ typedef struct _jsonreader_object {
 							   VKTOR_T_FLOAT | \
 							   VKTOR_T_STRING
 
+#define JSONREADER_READ_BUFF 4096
+
 /* {{{ Property access related functions and type definitions */
 
 typedef int (*jsonreader_read_t)  (jsonreader_object *obj, zval **retval TSRMLS_DC);
@@ -149,6 +151,7 @@ jsonreader_read_property(zval *object, zval *member, int type TSRMLS_DC)
 }
 /* }}} */
 
+/* {{{ jsonreader_write_property */
 void
 jsonreader_write_property(zval *object, zval *member, zval *value TSRMLS_DC)
 {
@@ -182,12 +185,39 @@ jsonreader_write_property(zval *object, zval *member, zval *value TSRMLS_DC)
 		zval_dtor(member);
 	}
 }
+/* }}} */
 
 static int 
 jsonreader_get_token_type(jsonreader_object *obj, zval **retval TSRMLS_DC)
 {
+	vktor_token token;
+
 	ALLOC_ZVAL(*retval);
-	ZVAL_STRING(*retval, "type", 1);
+
+	if (! obj->parser) {
+		ZVAL_NULL(*retval);
+
+	} else {
+		token = vktor_get_token_type(obj->parser);
+		switch (token) {
+			case VKTOR_T_NONE: 
+				ZVAL_NULL(*retval);
+				break;
+
+			case VKTOR_T_NULL:
+			case VKTOR_T_FALSE:
+			case VKTOR_T_TRUE:
+			case VKTOR_T_INT:
+			case VKTOR_T_FLOAT:
+			case VKTOR_T_STRING:
+				ZVAL_LONG(*retval, JSONREADER_VALUE_TOKEN);
+				break;
+			
+			default:
+				ZVAL_LONG(*retval, token);
+				break;
+		}
+	}
 
 	return SUCCESS;
 }
@@ -300,6 +330,86 @@ jsonreader_init(jsonreader_object *obj TSRMLS_DC)
 }
 /* }}} */
 
+static void 
+jsonreader_handle_error(vktor_error *err, jsonreader_object *obj TSRMLS_DC)
+{
+	php_error_docref(NULL TSRMLS_CC, E_WARNING, "parser error [#%d]: %s", 
+		err->code, err->message);
+
+	vktor_error_free(err);
+}
+
+static int 
+jsonreader_read_more_data(jsonreader_object *obj TSRMLS_DC)
+{
+	char          buffer[JSONREADER_READ_BUFF];
+	int           read;
+	vktor_status  status;
+	vktor_error  *err;
+	
+	read = php_stream_read(obj->stream, buffer, JSONREADER_READ_BUFF);
+	if (read <= 0) {
+		// done reading or error
+		php_error_docref(NULL TSRMLS_CC, E_WARNING, "JSON stream ended while expecting more data");
+		return FAILURE;
+	}
+
+	status = vktor_feed(obj->parser, buffer, read, &err);
+	if (status == VKTOR_ERROR) {
+		jsonreader_handle_error(err, obj TSRMLS_CC);
+		return FAILURE;
+	}
+
+	return SUCCESS;
+}
+
+/* {{{ jsonreader_read
+   Read the next token from the JSON stream
+*/
+static int
+jsonreader_read(jsonreader_object *obj TSRMLS_DC)
+{
+	vktor_status  status = VKTOR_OK;
+	vktor_error  *err;
+	int           retval;
+
+	do {
+		status = vktor_parse(obj->parser, &err);
+
+		switch(status) {
+			case VKTOR_OK:
+				retval = SUCCESS;
+				break;
+
+			case VKTOR_COMPLETE:
+				retval = FAILURE; // done, not really a failure
+				break;
+
+			case VKTOR_ERROR:
+				jsonreader_handle_error(err, obj TSRMLS_CC);
+				retval = FAILURE; 
+				break;
+
+			case VKTOR_MORE_DATA:
+				if (jsonreader_read_more_data(obj TSRMLS_CC) == FAILURE) {
+					retval = FAILURE;
+					status = VKTOR_ERROR;
+				}
+				break;
+
+			default:
+				// should not happen!
+				php_error_docref(NULL TSRMLS_CC, E_ERROR, "invalid status from internal JSON parser");
+				retval = FAILURE;
+				break;
+		}
+
+	} while (status == VKTOR_MORE_DATA);
+
+	return retval; 
+}
+/* }}} */
+
 /* {{{ proto boolean JSONReader::open(mixed URI)
 
    Opens the URI (any valid PHP stream URI) that JSONReader will open to read
@@ -383,7 +493,7 @@ PHP_METHOD(jsonreader, read)
 {
 	zval              *object;
 	jsonreader_object *intern;
-	
+
 	RETVAL_TRUE;
 
 	object = getThis();
@@ -398,7 +508,9 @@ PHP_METHOD(jsonreader, read)
 	// TODO: replace assertion with an if(!) and init parser (?)
 	assert(intern->parser != NULL);
 
-	
+	if (jsonreader_read(intern TSRMLS_CC) != SUCCESS) {
+		RETVAL_FALSE;
+	}
 }
 /* }}} */
 
