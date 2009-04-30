@@ -42,6 +42,7 @@ PHP_MINFO_FUNCTION(jsonreader);
 
 ZEND_BEGIN_MODULE_GLOBALS(jsonreader)
 	long  max_nesting_level;
+	long  read_buffer;
 ZEND_END_MODULE_GLOBALS(jsonreader)
 
 /* In every utility function you add that needs to use variables 

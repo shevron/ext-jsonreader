@@ -54,8 +54,6 @@ typedef struct _jsonreader_object {
 							   VKTOR_T_FLOAT | \
 							   VKTOR_T_STRING
 
-#define JSONREADER_READ_BUFF 4096
-
 /* {{{ Property access related functions and type definitions */
 
 typedef int (*jsonreader_read_t)  (jsonreader_object *obj, zval **retval TSRMLS_DC);
@@ -187,6 +185,9 @@ jsonreader_write_property(zval *object, zval *member, zval *value TSRMLS_DC)
 }
 /* }}} */
 
+/* {{{ jsonreader_get_token_type
+ * Get the type of the current token
+ */
 static int 
 jsonreader_get_token_type(jsonreader_object *obj, zval **retval TSRMLS_DC)
 {
@@ -221,7 +222,11 @@ jsonreader_get_token_type(jsonreader_object *obj, zval **retval TSRMLS_DC)
 
 	return SUCCESS;
 }
+/* }}} */
 
+/* {{{ jsonreader_get_token_value
+ * Get the value of the current token
+ */
 static int 
 jsonreader_get_token_value(jsonreader_object *obj, zval **retval TSRMLS_DC)
 {
@@ -230,24 +235,55 @@ jsonreader_get_token_value(jsonreader_object *obj, zval **retval TSRMLS_DC)
 
 	return SUCCESS;
 }
+/* }}} */
 
+/* {{{ jsonreader_get_current_struct 
+ * Get the type of the current JSON struct we are in (object, array or none)
+ */
 static int 
 jsonreader_get_current_struct(jsonreader_object *obj, zval **retval TSRMLS_DC)
 {
+	vktor_struct cs;
+
 	ALLOC_ZVAL(*retval);
-	ZVAL_STRING(*retval, "cs", 1);
+
+	if (! obj->parser) {
+		ZVAL_NULL(*retval);
+	
+	} else {
+		cs = vktor_get_current_struct(obj->parser);
+		if (cs == VKTOR_STRUCT_NONE) {
+			ZVAL_NULL(*retval);
+		} else {
+			ZVAL_LONG(*retval, cs);
+		}
+	}
 
 	return SUCCESS;
 }
+/* }}} */
 
+/* {{{ jsonreader_get_current_depth 
+ * Get the current nesting level 
+ */
 static int 
 jsonreader_get_current_depth(jsonreader_object *obj, zval **retval TSRMLS_DC)
 {
+	int depth;
+
 	ALLOC_ZVAL(*retval);
-	ZVAL_STRING(*retval, "cd", 1);
+	
+	if (! obj->parser) {
+		ZVAL_NULL(*retval);
+	
+	} else {
+		depth = vktor_get_depth(obj->parser);
+		ZVAL_LONG(*retval, depth);
+	}
 
 	return SUCCESS;
 }
+/* }}} */
 
 static int 
 jsonreader_get_current_key(jsonreader_object *obj, zval **retval TSRMLS_DC)
@@ -342,19 +378,21 @@ jsonreader_handle_error(vktor_error *err, jsonreader_object *obj TSRMLS_DC)
 static int 
 jsonreader_read_more_data(jsonreader_object *obj TSRMLS_DC)
 {
-	char          buffer[JSONREADER_READ_BUFF];
+	char         *buffer;
 	int           read;
 	vktor_status  status;
 	vktor_error  *err;
 	
-	read = php_stream_read(obj->stream, buffer, JSONREADER_READ_BUFF);
+	buffer = malloc(sizeof(char) * JSONREADER_G(read_buffer));
+
+	read = php_stream_read(obj->stream, buffer, JSONREADER_G(read_buffer));
 	if (read <= 0) {
 		// done reading or error
 		php_error_docref(NULL TSRMLS_CC, E_WARNING, "JSON stream ended while expecting more data");
 		return FAILURE;
 	}
 
-	status = vktor_feed(obj->parser, buffer, read, 0, &err);
+	status = vktor_feed(obj->parser, buffer, read, 1, &err);
 	if (status == VKTOR_ERROR) {
 		jsonreader_handle_error(err, obj TSRMLS_CC);
 		return FAILURE;
@@ -563,6 +601,9 @@ declare_jsonreader_class_entry(TSRMLS_D)
 	JSONREADER_REG_CLASS_CONST_L("OBJECT_END",   VKTOR_T_OBJECT_END);
 	JSONREADER_REG_CLASS_CONST_L("VALUE",        JSONREADER_VALUE_TOKEN);
 
+	JSONREADER_REG_CLASS_CONST_L("ARRAY",        VKTOR_STRUCT_ARRAY);
+	JSONREADER_REG_CLASS_CONST_L("OBJECT",       VKTOR_STRUCT_OBJECT);
+
 	// Register property handlers
 	jsonreader_register_prop_handler("tokenType", jsonreader_get_token_type, NULL TSRMLS_CC);
 	jsonreader_register_prop_handler("value", jsonreader_get_token_value, NULL TSRMLS_CC);
@@ -580,6 +621,7 @@ ZEND_GET_MODULE(jsonreader)
  */
 PHP_INI_BEGIN()
     STD_PHP_INI_ENTRY("jsonreader.max_nesting_level", "64", PHP_INI_ALL, OnUpdateLong, max_nesting_level, zend_jsonreader_globals, jsonreader_globals)
+    STD_PHP_INI_ENTRY("jsonreader.read_buffer", "4096", PHP_INI_ALL, OnUpdateLong, read_buffer, zend_jsonreader_globals, jsonreader_globals)
 PHP_INI_END()
 /* }}} */
 
@@ -588,6 +630,7 @@ PHP_INI_END()
 static PHP_GINIT_FUNCTION(jsonreader)
 {
 	jsonreader_globals->max_nesting_level = 64;
+	jsonreader_globals->read_buffer       = 4096;
 }
 /* }}} */
 
