@@ -5,6 +5,8 @@ TODO for the JSONReader PHP extension
 
 - Allow reading of overflowing integer or float values as strings 
 
+- Implement ability to parse a string buffer and not only a stream
+
 - Implement flexible error handling (throw exceptions, internal error handler)
 
 - Add the ability to pass specific configuration options to the constructor 
