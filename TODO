@@ -1,0 +1,29 @@
+TODO for the JSONReader PHP extension
+-------------------------------------
+
+- FIXME: malloc() is used to allocate the stream read buffer
+
+- Allow reading of overflowing integer or float values as strings 
+
+- Implement flexible error handling (throw exceptions, internal error handler)
+
+- Add the ability to pass specific configuration options to the constructor 
+  (max nesting level, read buffer size, error handling method...)
+
+- Consider: define specific type constants in addition to the VALUE constant
+
+
+Additions that will require improvements to libvktor:
+-----------------------------------------------------
+
+- Add some abilities to skip ahead 
+  - Over the current value token without reading it
+  - To a specific key in an object
+  - A specific number of elements in an array or an object
+  - Out of the current nesting level ("step out")
+
+- Add support for additional Unicode encodings (input or output)
+
+- Internal: allow changing the memory allocation functions for better
+  embedding in PHP 
+
