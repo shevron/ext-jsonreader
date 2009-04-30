@@ -150,6 +150,7 @@ typedef struct _vktor_buffer_struct {
 	char                        *text;      /**< buffer text */
 	long                         size;      /**< buffer size */
 	long                         ptr;       /**< internal buffer position */
+	char                         free;      /**< free the bffer when done */
 	struct _vktor_buffer_struct *next_buff;	/**< pointer to the next buffer */
 } vktor_buffer;
 
@@ -224,7 +225,9 @@ buffer_free_all(vktor_buffer *buffer)
 	
 	while (buffer != NULL) {
 		next = buffer->next_buff;
-		buffer_free(buffer);
+		if (buffer->free) {
+			buffer_free(buffer);
+		}
 		buffer = next;
 	}
 }
@@ -276,13 +279,13 @@ set_error(vktor_error **eptr, vktor_errcode code, const char *msg, ...)
  * Initialize a vktor buffer struct and set it's associated text and other 
  * properties
  * 
- * @param [in] text buffer contents
+ * @param [in] text     buffer contents
  * @param [in] text_len the length of the buffer
- * 
+ * @param [in] free     whether to free the buffer when done or not
  * @return A newly-allocated buffer struct
  */
 static vktor_buffer*
-buffer_init(char *text, long text_len)
+buffer_init(char *text, long text_len, char free)
 {
 	vktor_buffer *buffer;
 	
@@ -293,6 +296,7 @@ buffer_init(char *text, long text_len)
 	buffer->text      = text;
 	buffer->size      = text_len;
 	buffer->ptr       = 0;
+	buffer->free      = free;
 	buffer->next_buff = NULL;
 	
 	return buffer;
@@ -318,7 +322,9 @@ parser_advance_buffer(vktor_parser *parser)
 	assert(eobuffer(parser->buffer));
 	
 	next = parser->buffer->next_buff;
-	buffer_free(parser->buffer);
+	if (parser->buffer->free) {
+		buffer_free(parser->buffer);
+	}
 	parser->buffer = next;
 	
 	if (parser->buffer == NULL) {
@@ -1132,6 +1138,7 @@ vktor_parser_init(int max_nest)
  * @param [in] parser   parser object
  * @param [in] text     text to add to buffer
  * @param [in] text_len length of text to add to buffer
+ * @param [in] char     whether to free the buffer when done (1) or not (0)
  * @param [in,out] err  pointer to an unallocated error struct to return any 
  *                      errors, or NULL if there is no need for error handling
  * 
@@ -1141,12 +1148,12 @@ vktor_parser_init(int max_nest)
  */
 vktor_status 
 vktor_feed(vktor_parser *parser, char *text, long text_len, 
-           vktor_error **err) 
+           char free, vktor_error **err) 
 {
 	vktor_buffer *buffer;
 	
 	// Create buffer
-	if ((buffer = buffer_init(text, text_len)) == NULL) {
+	if ((buffer = buffer_init(text, text_len, free)) == NULL) {
 		set_error(err, VKTOR_ERR_OUT_OF_MEMORY, 
 			"Unable to allocate memory buffer for %ld bytes", text_len);
 		return VKTOR_ERROR;

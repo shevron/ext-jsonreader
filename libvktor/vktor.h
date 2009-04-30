@@ -57,18 +57,18 @@ typedef struct _vktor_parser_struct vktor_parser;
  * type.
  */
 typedef enum {
-	VKTOR_T_NONE         =  0,
-	VKTOR_T_NULL         =  1,
-	VKTOR_T_FALSE        =  1 << 1,
-	VKTOR_T_TRUE         =  1 << 2,
-	VKTOR_T_INT          =  1 << 3,
-	VKTOR_T_FLOAT        =  1 << 4,
-	VKTOR_T_STRING       =  1 << 5,
-	VKTOR_T_ARRAY_START  =  1 << 6,
-	VKTOR_T_ARRAY_END    =  1 << 7,
-	VKTOR_T_OBJECT_START =  1 << 8,
-	VKTOR_T_OBJECT_KEY   =  1 << 9,
-	VKTOR_T_OBJECT_END   =  1 << 10,
+	VKTOR_T_NONE         =  0,       /**< No token */
+	VKTOR_T_NULL         =  1,       /**< null */
+	VKTOR_T_FALSE        =  1 << 1,  /**< boolean false */
+	VKTOR_T_TRUE         =  1 << 2,  /**< boolean true */
+	VKTOR_T_INT          =  1 << 3,  /**< an integer value */
+	VKTOR_T_FLOAT        =  1 << 4,  /**< a floating-point value */
+	VKTOR_T_STRING       =  1 << 5,  /**< a string value */
+	VKTOR_T_ARRAY_START  =  1 << 6,  /**< array beginning */
+	VKTOR_T_ARRAY_END    =  1 << 7,  /**< array end */
+	VKTOR_T_OBJECT_START =  1 << 8,  /**< object beginning */
+	VKTOR_T_OBJECT_KEY   =  1 << 9,  /**< an object pair key */
+	VKTOR_T_OBJECT_END   =  1 << 10, /**< object end */
 } vktor_token;
 
 /**
@@ -164,6 +164,7 @@ void vktor_error_free(vktor_error *err);
  * @param [in] parser   parser object
  * @param [in] text     text to add to buffer
  * @param [in] text_len length of text to add to buffer
+ * @param [in] free     whether to free the buffer when done (1) or not (0)
  * @param [in,out] err  pointer to an unallocated error struct to return any 
  *                      errors, or NULL if there is no need for error handling
  * 
@@ -172,7 +173,7 @@ void vktor_error_free(vktor_error *err);
  *  - VKTOR_ERROR otherwise
  */
 vktor_status vktor_feed(vktor_parser *parser, char *text, long text_len, 
-                        vktor_error **err);
+                        char free, vktor_error **err);
 
 /**
  * @brief Parse some JSON text and return on the next token

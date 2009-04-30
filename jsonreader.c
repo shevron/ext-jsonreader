@@ -354,7 +354,7 @@ jsonreader_read_more_data(jsonreader_object *obj TSRMLS_DC)
 		return FAILURE;
 	}
 
-	status = vktor_feed(obj->parser, buffer, read, &err);
+	status = vktor_feed(obj->parser, buffer, read, 0, &err);
 	if (status == VKTOR_ERROR) {
 		jsonreader_handle_error(err, obj TSRMLS_CC);
 		return FAILURE;
