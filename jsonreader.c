@@ -54,6 +54,20 @@ typedef struct _jsonreader_object {
 							   VKTOR_T_FLOAT | \
 							   VKTOR_T_STRING
 
+/* {{{ jsonreader_handle_error
+ * Handle a parser error - for now generate an E_WARNING, in the future this might
+ * also do things like throw an exception or use an internal error handler
+ */
+static void 
+jsonreader_handle_error(vktor_error *err, jsonreader_object *obj TSRMLS_DC)
+{
+	php_error_docref(NULL TSRMLS_CC, E_WARNING, "parser error [#%d]: %s", 
+		err->code, err->message);
+
+	vktor_error_free(err);
+}
+/* }}} */
+
 /* {{{ Property access related functions and type definitions */
 
 typedef int (*jsonreader_read_t)  (jsonreader_object *obj, zval **retval TSRMLS_DC);
@@ -230,8 +244,72 @@ jsonreader_get_token_type(jsonreader_object *obj, zval **retval TSRMLS_DC)
 static int 
 jsonreader_get_token_value(jsonreader_object *obj, zval **retval TSRMLS_DC)
 {
+	vktor_token  t_type;
+	vktor_error *err = NULL;
+
 	ALLOC_ZVAL(*retval);
-	ZVAL_STRING(*retval, "value", 1);
+
+	if (! obj->parser) {
+		ZVAL_NULL(*retval);
+
+	} else {
+		t_type = vktor_get_token_type(obj->parser);
+		switch(t_type) {
+			case VKTOR_T_NONE:
+			case VKTOR_T_NULL:
+			case VKTOR_T_ARRAY_START:
+			case VKTOR_T_ARRAY_END:
+			case VKTOR_T_OBJECT_START:
+			case VKTOR_T_OBJECT_END:
+				ZVAL_NULL(*retval);
+				break;
+
+			case VKTOR_T_FALSE:
+			case VKTOR_T_TRUE:
+				ZVAL_BOOL(*retval, (t_type == VKTOR_T_TRUE));
+				break;
+
+			case VKTOR_T_OBJECT_KEY:
+			case VKTOR_T_STRING: {
+				char *strval;
+				int   strlen;
+
+				strlen = vktor_get_value_str(obj->parser, &strval, &err);
+				if (err != NULL) {
+					ZVAL_NULL(*retval);
+					jsonreader_handle_error(err, obj TSRMLS_CC);
+					return FAILURE;
+				}
+
+				ZVAL_STRINGL(*retval, strval, strlen, 1);
+				break;
+			}
+			
+			case VKTOR_T_INT:
+				ZVAL_LONG(*retval, vktor_get_value_long(obj->parser, &err));
+				if (err != NULL) {
+					ZVAL_NULL(*retval);
+					jsonreader_handle_error(err, obj TSRMLS_CC);
+					return FAILURE;
+				}
+				break;
+
+			case VKTOR_T_FLOAT:
+				ZVAL_DOUBLE(*retval, vktor_get_value_double(obj->parser, &err));
+				if (err != NULL) {
+					ZVAL_NULL(*retval);
+					jsonreader_handle_error(err, obj TSRMLS_CC);
+					return FAILURE;
+				}
+				break;
+
+			default: // should not happen
+				php_error_docref(NULL TSRMLS_CC, E_ERROR, 
+					"internal error: unkown token type %d", t_type);
+				return FAILURE;
+				break;
+		}
+	}
 
 	return SUCCESS;
 }
@@ -366,15 +444,9 @@ jsonreader_init(jsonreader_object *obj TSRMLS_DC)
 }
 /* }}} */
 
-static void 
-jsonreader_handle_error(vktor_error *err, jsonreader_object *obj TSRMLS_DC)
-{
-	php_error_docref(NULL TSRMLS_CC, E_WARNING, "parser error [#%d]: %s", 
-		err->code, err->message);
-
-	vktor_error_free(err);
-}
-
+/* {{{ jsonreader_read_more_data 
+ * Read more data from the stream and pass it to the parser
+ */
 static int 
 jsonreader_read_more_data(jsonreader_object *obj TSRMLS_DC)
 {
@@ -400,6 +472,7 @@ jsonreader_read_more_data(jsonreader_object *obj TSRMLS_DC)
 
 	return SUCCESS;
 }
+/* }}} */
 
 /* {{{ jsonreader_read
    Read the next token from the JSON stream
