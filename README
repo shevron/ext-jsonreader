@@ -1,0 +1,5 @@
+The jsonreader extension provides the JSONReader class - a forward-only, memory
+efficient pull parser for JSON streams. The API is modeled after the XMLReader 
+extension API (despite the very unrelated backend technologies) and is based 
+on libvktor which is shipped with the extension.
+
