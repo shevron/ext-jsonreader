@@ -9,7 +9,7 @@ Parse a simple short array
 $jr = new JSONReader;
 $jr->open('php://stdin');
 while ($jr->read()) {
-  if ($jr->tokenType == JSONReader::VALUE) {
+  if ($jr->tokenType & JSONReader::VALUE) {
     echo "- {$jr->value}\n";
   }
 }

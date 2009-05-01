@@ -24,7 +24,7 @@ $reader = new JSONReader;
 $reader->open('php://stdin');
 
 while ($reader->read()) {
-  if ($reader->tokenType == JSONReader::VALUE) {
+  if ($reader->tokenType == JSONReader::STRING) {
     // print indent
     echo str_repeat("  ", $reader->currentDepth);
     echo "* $reader->value\n";

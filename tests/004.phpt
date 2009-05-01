@@ -17,15 +17,20 @@ $jr->open($in);
 $ints = array();
 $floats = array();
 while ($jr->read()) {
-  if ($jr->tokenType == JSONReader::VALUE) {
-    $val = $jr->value;
-    if (is_int($val)) {
-      $ints[] = $val;
-    } elseif (is_float($val)) {
-      $floats[] = $val;
-    } else {
-      echo "Unexpected type: ";
-      var_dump($val);
+  if ($jr->tokenType & JSONReader::NUMBER) {
+    switch($jr->tokenType) {
+      case JSONReader::INT: 
+        $ints[] = $jr->value;
+        break;
+
+      case JSONReader::FLOAT:
+        $floats[] = $jr->value;
+        break;
+
+      default:
+        echo "Unexpected type: ";
+        var_dump($jr->value);
+        break;
     }
   }
 }

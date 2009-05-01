@@ -41,6 +41,9 @@ typedef struct _jsonreader_object {
 	php_stream   *stream;
 	vktor_parser *parser;
 	zend_bool     close_stream;
+	long          max_depth;
+	long          read_buffer;
+	int           err_handler;
 } jsonreader_object;
 
 #define JSONREADER_REG_CLASS_CONST_L(name, value) \
@@ -53,6 +56,20 @@ typedef struct _jsonreader_object {
 							   VKTOR_T_INT   | \
 							   VKTOR_T_FLOAT | \
 							   VKTOR_T_STRING
+
+/* {{{ attribute keys and possible values */
+enum {
+	ATTR_MAX_DEPTH = 1,
+	ATTR_READ_BUFF,
+	ATTR_ERR_HANDLER,
+
+	ERR_HANDLER_PHPERR,
+	ERR_HANDLER_EXCEPT,
+	ERR_HANDLER_INTERN
+};
+/* }}} */
+
+/* }}} */
 
 /* {{{ jsonreader_handle_error
    Handle a parser error - for now generate an E_WARNING, in the future this might
@@ -201,23 +218,10 @@ static int jsonreader_get_token_type(jsonreader_object *obj, zval **retval TSRML
 
 	} else {
 		token = vktor_get_token_type(obj->parser);
-		switch (token) {
-			case VKTOR_T_NONE: 
-				ZVAL_NULL(*retval);
-				break;
-
-			case VKTOR_T_NULL:
-			case VKTOR_T_FALSE:
-			case VKTOR_T_TRUE:
-			case VKTOR_T_INT:
-			case VKTOR_T_FLOAT:
-			case VKTOR_T_STRING:
-				ZVAL_LONG(*retval, JSONREADER_VALUE_TOKEN);
-				break;
-			
-			default:
-				ZVAL_LONG(*retval, token);
-				break;
+		if (token == VKTOR_T_NONE) {
+			ZVAL_NULL(*retval);
+		} else {
+			ZVAL_LONG(*retval, token);
 		}
 	}
 
@@ -375,6 +379,10 @@ static zend_object_value jsonreader_object_new(zend_class_entry *ce TSRMLS_DC)
 	jsonreader_object *intern;
 
 	intern = ecalloc(1, sizeof(jsonreader_object));
+	intern->max_depth = JSONREADER_G(max_nesting_level);
+	intern->read_buffer = JSONREADER_G(read_buffer);
+	intern->err_handler = ERR_HANDLER_PHPERR;
+
 	zend_object_std_init(&(intern->std), ce TSRMLS_CC);
 	zend_hash_copy(intern->std.properties, &ce->default_properties, 
 		(copy_ctor_func_t) zval_add_ref, NULL, sizeof(zval *));
@@ -399,7 +407,7 @@ static void jsonreader_init(jsonreader_object *obj TSRMLS_DC)
 	if (obj->parser) {
 		vktor_parser_free(obj->parser);
 	}
-	obj->parser = vktor_parser_init(JSONREADER_G(max_nesting_level));
+	obj->parser = vktor_parser_init(obj->max_depth);
 
 	if (obj->stream) {
 		php_stream_close(obj->stream);
@@ -416,9 +424,9 @@ static int jsonreader_read_more_data(jsonreader_object *obj TSRMLS_DC)
 	vktor_status  status;
 	vktor_error  *err;
 	
-	buffer = malloc(sizeof(char) * JSONREADER_G(read_buffer));
+	buffer = malloc(sizeof(char) * obj->read_buffer);
 
-	read = php_stream_read(obj->stream, buffer, JSONREADER_G(read_buffer));
+	read = php_stream_read(obj->stream, buffer, obj->read_buffer);
 	if (read <= 0) {
 		/* done reading or error */
 		php_error_docref(NULL TSRMLS_CC, E_WARNING, "JSON stream ended while expecting more data");
@@ -477,6 +485,76 @@ static int jsonreader_read(jsonreader_object *obj TSRMLS_DC)
 	} while (status == VKTOR_MORE_DATA);
 
 	return retval; 
+}
+/* }}} */
+
+/* {{{ jsonreader_set_attribute 
+   set an attribute of the JSONReader object */
+static void jsonreader_set_attribute(jsonreader_object *obj, ulong attr_key, zval *attr_value TSRMLS_DC)
+{
+	long lval = Z_LVAL_P(attr_value);
+
+	switch(attr_key) {
+		case ATTR_MAX_DEPTH:
+			if (lval < 1) {
+				php_error_docref(NULL TSRMLS_CC, E_WARNING, "maximal nesting level must be more than 0, %ld given", lval);
+			} else {
+				obj->max_depth = lval;
+			}
+			break;
+
+		case ATTR_READ_BUFF:
+			if (lval < 1) {
+				php_error_docref(NULL TSRMLS_CC, E_WARNING, "read buffer size must be more than 0, %ld given", lval);
+			} else {
+				obj->read_buffer = lval;
+			}
+			break;
+
+		case ATTR_ERR_HANDLER:
+			switch(lval) {
+				case ERR_HANDLER_PHPERR:
+				case ERR_HANDLER_EXCEPT:
+				case ERR_HANDLER_INTERN:
+					obj->err_handler = (int) lval;
+					break;
+
+				default:
+					php_error_docref(NULL TSRMLS_CC, E_WARNING, "invalid error handler attribute value: %ld", lval);
+					break;
+			}
+			break;
+	}
+}
+
+/* {{{ proto void JSONReader::__construct([array options])
+   Create a new JSONReader object, potentially setting some local attributes */
+PHP_METHOD(jsonreader, __construct)
+{
+	zval *object = getThis();
+	zval *options = NULL;
+
+	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "|!a", &options) == FAILURE) {
+		ZVAL_NULL(object);
+		return;
+	}
+
+	/* got attributes - set them */
+	if (options != NULL) {
+		jsonreader_object  *intern;
+		zval              **attr_value;
+		char               *str_key;
+		ulong               long_key;
+
+		intern = (jsonreader_object *) zend_object_store_get_object(object TSRMLS_CC);
+		zend_hash_internal_pointer_reset(Z_ARRVAL_P(options));
+		while (zend_hash_get_current_data(Z_ARRVAL_P(options), (void **) &attr_value) == SUCCESS &&
+			zend_hash_get_current_key(Z_ARRVAL_P(options), &str_key, &long_key, 0) == HASH_KEY_IS_LONG) {
+
+			jsonreader_set_attribute(intern, long_key, *attr_value TSRMLS_CC);
+			zend_hash_move_forward(Z_ARRVAL_P(options));
+		}
+	}
 }
 /* }}} */
 
@@ -580,6 +658,10 @@ PHP_METHOD(jsonreader, read)
 /* }}} */
 
 /* {{{ ARG_INFO */
+ZEND_BEGIN_ARG_INFO(arginfo_jsonreader___construct, 0)
+	ZEND_ARG_INFO(0, attributes)
+ZEND_END_ARG_INFO()
+
 ZEND_BEGIN_ARG_INFO(arginfo_jsonreader_open, 0)
 	ZEND_ARG_INFO(0, URI)
 ZEND_END_ARG_INFO()
@@ -593,6 +675,7 @@ ZEND_END_ARG_INFO()
 
 /* {{{ zend_function_entry jsonreader_class_methods */
 static const zend_function_entry jsonreader_class_methods[] = {
+	PHP_ME(jsonreader, __construct, arginfo_jsonreader___construct, ZEND_ACC_PUBLIC | ZEND_ACC_CTOR)
 	PHP_ME(jsonreader, open,  arginfo_jsonreader_open,  ZEND_ACC_PUBLIC)
 	PHP_ME(jsonreader, close, arginfo_jsonreader_close, ZEND_ACC_PUBLIC)
 	PHP_ME(jsonreader, read,  arginfo_jsonreader_read,  ZEND_ACC_PUBLIC)
@@ -644,12 +727,27 @@ PHP_MINIT_FUNCTION(jsonreader)
 	jsonreader_ce = zend_register_internal_class(&ce TSRMLS_CC);
 
 	/* Register class constants */
+	JSONREADER_REG_CLASS_CONST_L("ATTR_MAX_DEPTH",     ATTR_MAX_DEPTH);
+	JSONREADER_REG_CLASS_CONST_L("ATTR_READ_BUFF",     ATTR_READ_BUFF);
+	JSONREADER_REG_CLASS_CONST_L("ATTR_ERR_HANDLER",   ATTR_ERR_HANDLER);
+	JSONREADER_REG_CLASS_CONST_L("ERR_HANDLER_PHPERR", ERR_HANDLER_PHPERR);
+	JSONREADER_REG_CLASS_CONST_L("ERR_HANDLER_EXCEPT", ERR_HANDLER_EXCEPT);
+	JSONREADER_REG_CLASS_CONST_L("ERR_HANDLER_INTERN", ERR_HANDLER_INTERN);
+
+	JSONREADER_REG_CLASS_CONST_L("NULL",         VKTOR_T_NULL);
+	JSONREADER_REG_CLASS_CONST_L("FALSE",        VKTOR_T_FALSE);
+	JSONREADER_REG_CLASS_CONST_L("TRUE",         VKTOR_T_TRUE);
+	JSONREADER_REG_CLASS_CONST_L("BOOLEAN",      VKTOR_T_FALSE | VKTOR_T_TRUE);
+	JSONREADER_REG_CLASS_CONST_L("INT",          VKTOR_T_INT);
+	JSONREADER_REG_CLASS_CONST_L("FLOAT",        VKTOR_T_FLOAT);
+	JSONREADER_REG_CLASS_CONST_L("NUMBER",       VKTOR_T_INT | VKTOR_T_FLOAT);
+	JSONREADER_REG_CLASS_CONST_L("STRING",       VKTOR_T_STRING);
+	JSONREADER_REG_CLASS_CONST_L("VALUE",        JSONREADER_VALUE_TOKEN);
 	JSONREADER_REG_CLASS_CONST_L("ARRAY_START",  VKTOR_T_ARRAY_START);
 	JSONREADER_REG_CLASS_CONST_L("ARRAY_END",    VKTOR_T_ARRAY_END);
 	JSONREADER_REG_CLASS_CONST_L("OBJECT_START", VKTOR_T_OBJECT_START);
 	JSONREADER_REG_CLASS_CONST_L("OBJECT_KEY",   VKTOR_T_OBJECT_KEY);
 	JSONREADER_REG_CLASS_CONST_L("OBJECT_END",   VKTOR_T_OBJECT_END);
-	JSONREADER_REG_CLASS_CONST_L("VALUE",        JSONREADER_VALUE_TOKEN);
 
 	JSONREADER_REG_CLASS_CONST_L("ARRAY",        VKTOR_STRUCT_ARRAY);
 	JSONREADER_REG_CLASS_CONST_L("OBJECT",       VKTOR_STRUCT_OBJECT);
