@@ -344,14 +344,6 @@ static int jsonreader_get_current_depth(jsonreader_object *obj, zval **retval TS
 }
 /* }}} */
 
-static int jsonreader_get_current_key(jsonreader_object *obj, zval **retval TSRMLS_DC)
-{
-	ALLOC_ZVAL(*retval);
-	ZVAL_STRING(*retval, "ck", 1);
-
-	return SUCCESS;
-}
-
 /* }}} */
 
 /* {{{ jsonreader_object_free_storage 
@@ -667,7 +659,6 @@ PHP_MINIT_FUNCTION(jsonreader)
 	jsonreader_register_prop_handler("value", jsonreader_get_token_value, NULL TSRMLS_CC);
 	jsonreader_register_prop_handler("currentStruct", jsonreader_get_current_struct, NULL TSRMLS_CC);
 	jsonreader_register_prop_handler("currentDepth", jsonreader_get_current_depth, NULL TSRMLS_CC);
-	jsonreader_register_prop_handler("currentKey", jsonreader_get_current_key, NULL TSRMLS_CC);
 	
 	return SUCCESS;
 }

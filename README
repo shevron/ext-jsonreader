@@ -135,9 +135,6 @@ properties using one of the object properties desctibed below.
   int JSONReader::currentDepth
     The current nesting level inside the JSON data. 0 means root level.
 
-  string JSONReader::currentKey
-    If we are in a JSON object, get the key of the current data
-
 
 The following constants represent the different JSON token types:
 
