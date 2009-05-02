@@ -61,11 +61,11 @@ typedef struct _jsonreader_object {
 enum {
 	ATTR_MAX_DEPTH = 1,
 	ATTR_READ_BUFF,
-	ATTR_ERR_HANDLER,
+	ATTR_ERRMODE,
 
-	ERR_HANDLER_PHPERR,
-	ERR_HANDLER_EXCEPT,
-	ERR_HANDLER_INTERN
+	ERRMODE_PHPERR,
+	ERRMODE_EXCEPT,
+	ERRMODE_INTERN
 };
 /* }}} */
 
@@ -381,7 +381,7 @@ static zend_object_value jsonreader_object_new(zend_class_entry *ce TSRMLS_DC)
 	intern = ecalloc(1, sizeof(jsonreader_object));
 	intern->max_depth = JSONREADER_G(max_depth);
 	intern->read_buffer = JSONREADER_G(read_buffer);
-	intern->err_handler = ERR_HANDLER_PHPERR;
+	intern->err_handler = ERRMODE_PHPERR;
 
 	zend_object_std_init(&(intern->std), ce TSRMLS_CC);
 	zend_hash_copy(intern->std.properties, &ce->default_properties, 
@@ -511,11 +511,11 @@ static void jsonreader_set_attribute(jsonreader_object *obj, ulong attr_key, zva
 			}
 			break;
 
-		case ATTR_ERR_HANDLER:
+		case ATTR_ERRMODE:
 			switch(lval) {
-				case ERR_HANDLER_PHPERR:
-				case ERR_HANDLER_EXCEPT:
-				case ERR_HANDLER_INTERN:
+				case ERRMODE_PHPERR:
+				case ERRMODE_EXCEPT:
+				case ERRMODE_INTERN:
 					obj->err_handler = (int) lval;
 					break;
 
@@ -728,12 +728,12 @@ PHP_MINIT_FUNCTION(jsonreader)
 	jsonreader_ce = zend_register_internal_class(&ce TSRMLS_CC);
 
 	/* Register class constants */
-	JSONREADER_REG_CLASS_CONST_L("ATTR_MAX_DEPTH",     ATTR_MAX_DEPTH);
-	JSONREADER_REG_CLASS_CONST_L("ATTR_READ_BUFF",     ATTR_READ_BUFF);
-	JSONREADER_REG_CLASS_CONST_L("ATTR_ERR_HANDLER",   ATTR_ERR_HANDLER);
-	JSONREADER_REG_CLASS_CONST_L("ERR_HANDLER_PHPERR", ERR_HANDLER_PHPERR);
-	JSONREADER_REG_CLASS_CONST_L("ERR_HANDLER_EXCEPT", ERR_HANDLER_EXCEPT);
-	JSONREADER_REG_CLASS_CONST_L("ERR_HANDLER_INTERN", ERR_HANDLER_INTERN);
+	JSONREADER_REG_CLASS_CONST_L("ATTR_MAX_DEPTH", ATTR_MAX_DEPTH);
+	JSONREADER_REG_CLASS_CONST_L("ATTR_READ_BUFF", ATTR_READ_BUFF);
+	JSONREADER_REG_CLASS_CONST_L("ATTR_ERRMODE",   ATTR_ERRMODE);
+	JSONREADER_REG_CLASS_CONST_L("ERRMODE_PHPERR", ERRMODE_PHPERR);
+	JSONREADER_REG_CLASS_CONST_L("ERRMODE_EXCEPT", ERRMODE_EXCEPT);
+	JSONREADER_REG_CLASS_CONST_L("ERRMODE_INTERN", ERRMODE_INTERN);
 
 	JSONREADER_REG_CLASS_CONST_L("NULL",         VKTOR_T_NULL);
 	JSONREADER_REG_CLASS_CONST_L("FALSE",        VKTOR_T_FALSE);

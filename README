@@ -196,12 +196,12 @@ void JSONReader::__construct([array $attributes])
 $attributes is an associative (attribute => value) array, with the following
 constants representing different attributes:
 
-  JSONReader::ATTR_ERR_HANDLER (NOTE:: Not implemented yet!)
+  JSONReader::ATTR_ERRMODE (NOTE:: Not implemented yet!)
 
     Set the reader's error handling method. This might be one of:
-      JSONReader::ERR_HANDLER_PHPERR - report a PHP error / warning (default)
-      JSONReader::ERR_HANDLER_EXCEPT - throw a JSONReaderException
-      JSONReader::ERR_HANDLER_INTERN - do not report errors, but keep them
+      JSONReader::ERRMODE_PHPERR - report a PHP error / warning (default)
+      JSONReader::ERRMODE_EXCEPT - throw a JSONReaderException
+      JSONReader::ERRMODE_INTERN - do not report errors, but keep them
         internally and allow the programmer to manually check for any errors
 
   JSONReader::ATTR_MAX_DEPTH
@@ -234,7 +234,7 @@ object:
 // case of error
 $reader = new JSONReader(array(
   JSONReader::ATTR_MAX_DEPTH => 128,
-  JSONReader::ATTR_ERR_HANDLER => JSONReader::ERR_HANDLER_EXCEPT
+  JSONReader::ATTR_ERRMODE   => JSONReader::ERRMODE_EXCEPT
 ));
 
 ?>
