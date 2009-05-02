@@ -520,7 +520,8 @@ static void jsonreader_set_attribute(jsonreader_object *obj, ulong attr_key, zva
 					break;
 
 				default:
-					php_error_docref(NULL TSRMLS_CC, E_WARNING, "invalid error handler attribute value: %ld", lval);
+					php_error_docref(NULL TSRMLS_CC, E_WARNING, 
+						"invalid error handler attribute value: %ld", lval);
 					break;
 			}
 			break;
@@ -534,7 +535,7 @@ PHP_METHOD(jsonreader, __construct)
 	zval *object = getThis();
 	zval *options = NULL;
 
-	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "|!a", &options) == FAILURE) {
+	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "|a", &options) == FAILURE) {
 		ZVAL_NULL(object);
 		return;
 	}
