@@ -41,7 +41,7 @@ PHP_MSHUTDOWN_FUNCTION(jsonreader);
 PHP_MINFO_FUNCTION(jsonreader);
 
 ZEND_BEGIN_MODULE_GLOBALS(jsonreader)
-	long  max_nesting_level;
+	long  max_depth;
 	long  read_buffer;
 ZEND_END_MODULE_GLOBALS(jsonreader)
 

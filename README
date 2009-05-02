@@ -64,7 +64,7 @@ an HTTP stream:
 
 <?php
 
-$reader = new JSONReader; 
+$reader = new JSONReader(); 
 $reader->open('http://www.example.com/news.json');
 
 while ($reader->read()) {
@@ -138,17 +138,124 @@ properties using one of the object properties desctibed below.
 
 The following constants represent the different JSON token types:
 
-  JSONReader::VALUE        - a value token (null, bool, string, integer, float)
+  JSONReader::NULL         - a JSON 'null' (this does not equal a PHP NULL)
+  JSONReader::FALSE        - Boolean false
+  JSONReader::TRUE         - Boolean true
+  JSONReader::INT          - An integer value
+  JSONReader::FLOAT        - A floating-point value
+  JSONReader::STRING       - A string
+  
   JSONReader::ARRAY_START  - the beginning of an array
   JSONReader::ARRAY_END    - the end of an array
   JSONReader::OBJECT_START - the beginning of an object 
   JSONReader::OBJECT_KEY   - an object key (::value will contain the key)
   JSONReader::OBJECT_END   - the end of an object
 
+Additionally, you may test the value of JSONReader->tokenType against the 
+following constants that represent classes of token types:
+
+  JSONReader::BOOLEAN      - Either TRUE or FALSE
+  JSONReader::NUMBER       - A numeric type - either an INT or a FLOAT 
+  JSONReader::VALUE        - Any value token (including null, booleans,  
+                             integers, floats and strings)
+
+Note that you shoud use "bitwise and" (&) to compare against these constants - 
+the value of JSONReader->tokenType will never be equal (==) to any of them:
+
+<?php
+
+// Check if the current token is a number
+if ($reader->tokenType & JSONReader::NUMBER) {
+  // do something...
+}
+
+// Check if the current token is boolean
+if ($reader->tokenTyppe & JSONReader::BOOLEAN) {
+  // do something...
+}
+
+// Check if the current token is a value token but not a string
+if ($reader->tokenType & (JSONReader::VALUE & ~JSONReader::STRING)) {
+  // do something ...
+}
+
+// NOTE: This will never be true:
+if ($reader->tokenType == JSONReader::VALUE) {
+  // will never happen!
+}
+
+?>
+
+
+Constructor Attributes
+----------------------
+The JSONReader constructor optionally accepts an array of attributes:
+
+void JSONReader::__construct([array $attributes])
+
+$attributes is an associative (attribute => value) array, with the following
+constants representing different attributes:
+
+  JSONReader::ATTR_ERR_HANDLER (NOTE:: Not implemented yet!)
+
+    Set the reader's error handling method. This might be one of:
+      JSONReader::ERR_HANDLER_PHPERR - report a PHP error / warning (default)
+      JSONReader::ERR_HANDLER_EXCEPT - throw a JSONReaderException
+      JSONReader::ERR_HANDLER_INTERN - do not report errors, but keep them
+        internally and allow the programmer to manually check for any errors
+
+  JSONReader::ATTR_MAX_DEPTH
+
+    Set the maximal nesting level of the JSON parser. If the maximal nesting
+    level is reached, the parser will return with an error. If not specified, 
+    the value of the jsonreader.max_depth INI setting is used, and the default
+    value is 64. 
+    
+    There is usually no reason to modify this, unless you know in advance the
+    JSON structure you are about it read might contain very deep nesting
+    arrays or objects. 
+
+  JSONReader::ATTR_READ_BUFF 
+
+    Set the stream read buffer size. This sets the largest chunk of data which
+    is read from the stream per iteration and passed on to the parser. Smaller
+    values may reduce memory usage but will require more work. If not
+    specified, the value of the jsonreader.read_buffer INI setting is used,
+    and the default value of that is 4096.
+
+    There is usually no need to change this. 
+
+The following example demonstrates passing attributes when creating the
+object:
+
+<?php
+
+// Create a reader that can handle 128 nesting levels and throws exceptions in
+// case of error
+$reader = new JSONReader(array(
+  JSONReader::ATTR_MAX_DEPTH => 128,
+  JSONReader::ATTR_ERR_HANDLER => JSONReader::ERR_HANDLER_EXCEPT
+));
+
+?>
+
+
+INI Settings
+------------
+The following php.ini directives are available:
+
+  jsonreader.max_depth    - The default maximal depth that the reader can
+                            handle. The default value is 64. This can be
+			    overriden using the ATTR_MAX_DEPTH attribute. 
+
+  jsonreader.read_buffer  - The default read buffer size in bytes. The default 
+                            value is 4096. This can be overriden using the 
+			    ATTR_READ_BUFF attribute. 
+
 
 Caveats / Known Issues
 ----------------------
-- Please note that the extension expects input in UTF8 encoding and decodes any
+- Please note that the extension expects input in UTF-8 encoding and decodes any
   JSON-encoded special characters into UTF-8. In the future other encodings 
   might be supported but for now you are adviced to apply an iconv stream filter
   if you are reading from a stream which is not UTF-8 encoded.

@@ -379,7 +379,7 @@ static zend_object_value jsonreader_object_new(zend_class_entry *ce TSRMLS_DC)
 	jsonreader_object *intern;
 
 	intern = ecalloc(1, sizeof(jsonreader_object));
-	intern->max_depth = JSONREADER_G(max_nesting_level);
+	intern->max_depth = JSONREADER_G(max_depth);
 	intern->read_buffer = JSONREADER_G(read_buffer);
 	intern->err_handler = ERR_HANDLER_PHPERR;
 
@@ -689,7 +689,7 @@ ZEND_GET_MODULE(jsonreader)
 
 /* {{{ PHP_INI */
 PHP_INI_BEGIN()
-    STD_PHP_INI_ENTRY("jsonreader.max_nesting_level", "64", PHP_INI_ALL, OnUpdateLong, max_nesting_level, zend_jsonreader_globals, jsonreader_globals)
+    STD_PHP_INI_ENTRY("jsonreader.max_depth", "64", PHP_INI_ALL, OnUpdateLong, max_depth, zend_jsonreader_globals, jsonreader_globals)
     STD_PHP_INI_ENTRY("jsonreader.read_buffer", "4096", PHP_INI_ALL, OnUpdateLong, read_buffer, zend_jsonreader_globals, jsonreader_globals)
 PHP_INI_END()
 /* }}} */
@@ -697,7 +697,7 @@ PHP_INI_END()
 /* {{{ PHP_GINIT_FUNCTION */
 PHP_GINIT_FUNCTION(jsonreader)
 {
-	jsonreader_globals->max_nesting_level = 64;
+	jsonreader_globals->max_depth = 64;
 	jsonreader_globals->read_buffer       = 4096;
 }
 /* }}} */
