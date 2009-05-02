@@ -26,6 +26,7 @@
 #include "php_ini.h"
 #include "ext/standard/info.h"
 #include "php_jsonreader.h"
+#include "zend_exceptions.h"
 
 #include "libvktor/vktor.h"
 
@@ -33,6 +34,7 @@ ZEND_DECLARE_MODULE_GLOBALS(jsonreader)
 
 static zend_object_handlers  jsonreader_obj_handlers;
 static zend_class_entry     *jsonreader_ce;
+static zend_class_entry     *jsonreader_exception_ce;
 
 const HashTable jsonreader_prop_handlers;
 
@@ -43,7 +45,7 @@ typedef struct _jsonreader_object {
 	zend_bool     close_stream;
 	long          max_depth;
 	long          read_buffer;
-	int           err_handler;
+	int           errmode;
 } jsonreader_object;
 
 #define JSONREADER_REG_CLASS_CONST_L(name, value) \
@@ -76,10 +78,24 @@ enum {
    also do things like throw an exception or use an internal error handler */
 static void jsonreader_handle_error(vktor_error *err, jsonreader_object *obj TSRMLS_DC)
 {
-       php_error_docref(NULL TSRMLS_CC, E_WARNING, "parser error [#%d]: %s", 
-               err->code, err->message);
+	switch(obj->errmode) {
+		case ERRMODE_PHPERR:
+			php_error_docref(NULL TSRMLS_CC, E_WARNING, "parser error [#%d]: %s", 
+				err->code, err->message);
+			break;
 
-       vktor_error_free(err);
+		case ERRMODE_EXCEPT:
+			zend_throw_exception_ex(jsonreader_exception_ce, err->code TSRMLS_CC, 
+				err->message);
+			break;
+
+		default: // For now emit a PHP WARNING
+			php_error_docref(NULL TSRMLS_CC, E_WARNING, "parser error [#%d]: %s", 
+				err->code, err->message);
+			break;
+	}
+
+	vktor_error_free(err);
 }
 /* }}} */
 
@@ -381,7 +397,7 @@ static zend_object_value jsonreader_object_new(zend_class_entry *ce TSRMLS_DC)
 	intern = ecalloc(1, sizeof(jsonreader_object));
 	intern->max_depth = JSONREADER_G(max_depth);
 	intern->read_buffer = JSONREADER_G(read_buffer);
-	intern->err_handler = ERRMODE_PHPERR;
+	intern->errmode = ERRMODE_PHPERR;
 
 	zend_object_std_init(&(intern->std), ce TSRMLS_CC);
 	zend_hash_copy(intern->std.properties, &ce->default_properties, 
@@ -516,7 +532,7 @@ static void jsonreader_set_attribute(jsonreader_object *obj, ulong attr_key, zva
 				case ERRMODE_PHPERR:
 				case ERRMODE_EXCEPT:
 				case ERRMODE_INTERN:
-					obj->err_handler = (int) lval;
+					obj->errmode = (int) lval;
 					break;
 
 				default:
@@ -758,7 +774,14 @@ PHP_MINIT_FUNCTION(jsonreader)
 	jsonreader_register_prop_handler("value", jsonreader_get_token_value, NULL TSRMLS_CC);
 	jsonreader_register_prop_handler("currentStruct", jsonreader_get_current_struct, NULL TSRMLS_CC);
 	jsonreader_register_prop_handler("currentDepth", jsonreader_get_current_depth, NULL TSRMLS_CC);
-	
+
+	/**
+	 * Declare the JSONReaderException class
+	 */
+	INIT_CLASS_ENTRY(ce, "JSONReaderException", NULL);
+	jsonreader_exception_ce = zend_register_internal_class_ex(&ce, 
+		zend_exception_get_default(TSRMLS_C), NULL TSRMLS_CC);
+
 	return SUCCESS;
 }
 /* }}} */

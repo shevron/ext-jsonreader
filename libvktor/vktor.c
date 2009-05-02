@@ -1442,8 +1442,8 @@ vktor_parse(vktor_parser *parser, vktor_error **error)
 				case '-':
 				case '+':
 					// Read a number
-					if (! parser->expected & (VKTOR_T_INT | 
-					                          VKTOR_T_FLOAT)) {
+					if (! (parser->expected & (VKTOR_T_INT | 
+					                           VKTOR_T_FLOAT))) {
 						set_error_unexpected_c(error, c);
 						return VKTOR_ERROR;
 					}
