@@ -1,5 +1,5 @@
 --TEST--
-Test that we can modify the max nesting level through a construcot attribute
+Test that we can modify the max nesting level through a constructor attribute
 --SKIPIF--
 <?php if (!extension_loaded("jsonreader")) print "skip"; ?>
 --STDIN--
