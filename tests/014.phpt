@@ -5,7 +5,7 @@ Test that we can get the current struct using currentStruct
 --STDIN--
 [{
   "key": 12, 
-  "array: [1, 2, [3], {"a" : "B"}]
+  "array": [1, 2, [3], {"a" : "B"}]
 }]
 --FILE--
 <?php
@@ -32,8 +32,8 @@ int(1)
 int(2)
 int(2)
 int(2)
-int(2)
 int(1)
 int(2)
 int(1)
+NULL
 
