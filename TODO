@@ -7,12 +7,7 @@ TODO for the JSONReader PHP extension
 
 - Implement ability to parse a string buffer and not only a stream
 
-- Implement flexible error handling (throw exceptions, internal error handler)
-
-- Add the ability to pass specific configuration options to the constructor 
-  (max nesting level, read buffer size, error handling method...)
-
-- Consider: define specific type constants in addition to the VALUE constant
+- Implement internal error handler
 
 
 Additions that will require improvements to libvktor:
