@@ -78,23 +78,56 @@
 #define eobuffer(b) (b->ptr >= b->size)
 
 /**
+ * Set some macros depending on whether byte counting is enabled or not 
+ */
+#ifdef BYTECOUNTER
+
+#define INCREMENT_BUFFER_PTR(p) \
+	p->buffer->ptr++;       \
+	p->bytecounter++;       
+
+#define BYTECOUNT_TPL " at %d bytes"
+#define BYTECOUNT_VAL , parser->bytecounter
+
+#else
+
+#define INCREMENT_BUFFER_PTR(p) p->buffer->ptr++;
+#define BYTECOUNT_TPL
+#define BYTECOUNT_VAL
+
+#endif
+
+
+/**
+ * When debugging is enabled, file and line info can be added to error macros 
+ */
+#ifdef ENABLE_DEBUG
+#define _VK_QUOTEME(x) #x
+#define VK_QUOTEME(x) _VK_QUOTEME(x)
+#define LINEINFO "[" __FILE__ ":" VK_QUOTEME(__LINE__) "] "
+#else
+#define LINEINFO 
+#endif
+
+/**
  * Convenience macro to set an 'unexpected character' error
  */
-#define set_error_unexpected_c(e, c)         \
-	set_error(e, VKTOR_ERR_UNEXPECTED_INPUT, \
-		"Unexpected character in input: '%c' (0x%02hhx)", c, c)
+#define set_error_unexpected_c(e, c)                                      \
+	set_error(e, VKTOR_ERR_UNEXPECTED_INPUT,                          \
+		LINEINFO "Unexpected character in input: '%c' (0x%02hhx)" \
+		BYTECOUNT_TPL, c, c BYTECOUNT_VAL)
 
 /**
  * A bitmask representing any 'value' token 
  */
-#define VKTOR_VALUE_TOKEN VKTOR_T_NULL        | \
-                          VKTOR_T_FALSE       | \
-						  VKTOR_T_TRUE        | \
-						  VKTOR_T_INT         | \
-						  VKTOR_T_FLOAT       | \
-						  VKTOR_T_STRING      | \
-						  VKTOR_T_ARRAY_START | \
-						  VKTOR_T_OBJECT_START
+#define VKTOR_VALUE_TOKEN VKTOR_T_NULL         | \
+                          VKTOR_T_FALSE        | \
+                          VKTOR_T_TRUE         | \
+                          VKTOR_T_INT          | \
+                          VKTOR_T_FLOAT        | \
+                          VKTOR_T_STRING       | \
+                          VKTOR_T_ARRAY_START  | \
+                          VKTOR_T_OBJECT_START
 
 /**
  * Convenience macro to check if we are in a specific type of JSON struct
@@ -105,36 +138,36 @@
  * Convenience macro to easily set the expected next token map after a value
  * token, taking current struct struct (if any) into account.
  */
-#define expect_next_value_token(p)              \
-	switch(p->nest_stack[p->nest_ptr]) {        \
-		case VKTOR_STRUCT_OBJECT:               \
-			p->expected = VKTOR_C_COMMA |       \
-							VKTOR_T_OBJECT_END; \
-			break;                              \
-												\
-		case VKTOR_STRUCT_ARRAY:                \
-			p->expected = VKTOR_C_COMMA |       \
-							VKTOR_T_ARRAY_END;  \
-			break;                              \
-												\
-		default:                                \
-			p->expected = VKTOR_T_NONE;         \
-			break;                              \
+#define expect_next_value_token(p)                        \
+	switch(p->nest_stack[p->nest_ptr]) {              \
+		case VKTOR_STRUCT_OBJECT:                 \
+			p->expected = VKTOR_C_COMMA |     \
+			              VKTOR_T_OBJECT_END; \
+			break;                            \
+			                                  \
+		case VKTOR_STRUCT_ARRAY:                  \
+			p->expected = VKTOR_C_COMMA |     \
+			              VKTOR_T_ARRAY_END;  \
+			break;                            \
+			                                  \
+		default:                                  \
+			p->expected = VKTOR_T_NONE;       \
+			break;                            \
 	}
 
 /**
  * Convenience macro to check, and reallocate if needed, the memory size for
  * reading a token
  */
-#define check_reallocate_token_memory(cs)                              \
-	if ((ptr + 5) >= maxlen) {                                         \
-		maxlen = maxlen + cs;                                          \
-		if ((token = realloc(token, maxlen * sizeof(char))) == NULL) { \
-			set_error(error, VKTOR_ERR_OUT_OF_MEMORY,                  \
-				"unable to allocate %d more bytes for string parsing", \
-				cs);                                                   \
-			return VKTOR_ERROR;                                        \
-		}                                                              \
+#define check_reallocate_token_memory(cs)                                              \
+	if ((ptr + 5) >= maxlen) {                                                     \
+		maxlen = maxlen + cs;                                                  \
+		if ((token = vrealloc(token, maxlen * sizeof(char))) == NULL) {         \
+			set_error(error, VKTOR_ERR_OUT_OF_MEMORY,                      \
+				"unable to allocate %d more bytes for string parsing"  \
+				LINEINFO, cs);                                         \
+			return VKTOR_ERROR;                                            \
+		}                                                                      \
 	}
 
 /**
@@ -172,6 +205,10 @@ struct _vktor_parser_struct {
 	int             nest_ptr;     /**< pointer to the current nesting level */
 	int             max_nest;     /**< maximal nesting level */
 	unsigned long   unicode_c;    /**< temp container for unicode characters */
+#ifdef BYTECOUNTER
+	/** Total bytes parsed counter, only enabled if BYTECOUNTER is defined **/
+	unsigned long   bytecounter;  
+#endif
 };
 
 /**
@@ -194,6 +231,10 @@ typedef enum {
 	VKTOR_C_UNIC_LS = 1 << 26, /**< Unicode low surrogate */
 } vktor_specialchar;
 
+static vktor_malloc  vmalloc  = malloc;
+static vktor_free    vfree    = free;
+static vktor_realloc vrealloc = realloc;
+
 /**
  * @brief Free a vktor_buffer struct
  * 
@@ -208,8 +249,8 @@ buffer_free(vktor_buffer *buffer)
 	assert(buffer != NULL);
 	assert(buffer->text != NULL);
 	
-	free(buffer->text);
-	free(buffer);
+	vfree(buffer->text);
+	vfree(buffer);
 }
 
 /**
@@ -258,12 +299,12 @@ set_error(vktor_error **eptr, vktor_errcode code, const char *msg, ...)
 		return;
 	}
 	
-	if ((err = malloc(sizeof(vktor_error))) == NULL) {
+	if ((err = vmalloc(sizeof(vktor_error))) == NULL) {
 		return;
 	}
 	
 	err->code = code;
-	err->message = malloc(VKTOR_MAX_E_LEN * sizeof(char));
+	err->message = vmalloc(VKTOR_MAX_E_LEN * sizeof(char));
 	if (err->message != NULL) {
 		va_list ap;
 		      
@@ -291,7 +332,7 @@ buffer_init(char *text, long text_len, char free)
 {
 	vktor_buffer *buffer;
 	
-	if ((buffer = malloc(sizeof(vktor_buffer))) == NULL) {
+	if ((buffer = vmalloc(sizeof(vktor_buffer))) == NULL) {
 		return NULL;
 	}
 	
@@ -351,7 +392,7 @@ parser_set_token(vktor_parser *parser, vktor_token token, void *value)
 {
 	parser->token_type = token;
 	if (parser->token_value != NULL) {
-		free(parser->token_value);
+		vfree(parser->token_value);
 	}
 	parser->token_value = value;
 }
@@ -451,11 +492,11 @@ parser_read_string(vktor_parser *parser, vktor_error **error)
 			assert(token != NULL);
 		} else {
 			maxlen = ptr + VKTOR_STR_MEMCHUNK;
-			token = realloc(parser->token_value, sizeof(char) * maxlen);
+			token = vrealloc(parser->token_value, sizeof(char) * maxlen);
 		}	
 		
 	} else {
-		token  = malloc(VKTOR_STR_MEMCHUNK * sizeof(char));
+		token  = vmalloc(VKTOR_STR_MEMCHUNK * sizeof(char));
 		maxlen = VKTOR_STR_MEMCHUNK;
 		ptr    = 0;
 	}
@@ -670,8 +711,8 @@ parser_read_string(vktor_parser *parser, vktor_error **error)
 						break;
 				}
 			}
-						
-			parser->buffer->ptr++;
+			
+			INCREMENT_BUFFER_PTR(parser);
 			if (done) break;
 		}
 		
@@ -783,7 +824,6 @@ parser_read_expectedstr(vktor_parser *parser, const char *expect, int explen,
 	vktor_error **error)
 {
 	char  c;
-	//~ int   ptr;
 	
 	assert(parser != NULL);
 	assert(expect != NULL);
@@ -814,8 +854,8 @@ parser_read_expectedstr(vktor_parser *parser, const char *expect, int explen,
 			set_error_unexpected_c(error, c);
 			return VKTOR_ERROR;
 		}
-		
-		parser->buffer->ptr++;
+	
+		INCREMENT_BUFFER_PTR(parser);
 	}
 	
 	// if we made it here, it means we are good!
@@ -934,20 +974,20 @@ parser_read_number_token(vktor_parser *parser, vktor_error **error)
 			assert(token != NULL);
 		} else {
 			maxlen = ptr + VKTOR_NUM_MEMCHUNK;
-			token = realloc(parser->token_value, sizeof(char) * maxlen);
+			token = vrealloc(parser->token_value, sizeof(char) * maxlen);
 		}
 		
 	} else {
-		token  = malloc(VKTOR_NUM_MEMCHUNK * sizeof(char));
+		token  = vmalloc(VKTOR_NUM_MEMCHUNK * sizeof(char));
 		maxlen = VKTOR_NUM_MEMCHUNK;
 		ptr    = 0;
 		
 		// Reading a new token - set possible expected characters
 		parser->expected = VKTOR_T_INT    | 
 		                   VKTOR_T_FLOAT  | 
-						   VKTOR_C_DOT    | 
-						   VKTOR_C_EXP    | 
-						   VKTOR_C_SIGNUM;
+				   VKTOR_C_DOT    | 
+				   VKTOR_C_EXP    | 
+				   VKTOR_C_SIGNUM;
 						   
 		// Free previous token and set token type to INT until proven otherwise 
 		parser_set_token(parser, VKTOR_T_INT, NULL);
@@ -1061,7 +1101,7 @@ parser_read_number_token(vktor_parser *parser, vktor_error **error)
 			}
 			
 			if (done) break;
-			parser->buffer->ptr++;
+			INCREMENT_BUFFER_PTR(parser);
 			check_reallocate_token_memory(VKTOR_NUM_MEMCHUNK);
 		}
 		
@@ -1094,6 +1134,30 @@ parser_read_number_token(vktor_parser *parser, vktor_error **error)
  */
 
 /**
+ * @brief Set memory handling function implementation
+ *
+ * Allows one to set alternative implementations of malloc, realloc and free. If 
+ * set, the alternative implementations will be used by vktor globally to manage
+ * memory. Since this has global effect it is recommended to set this once before
+ * doing anything with vktor, and not to change this.
+ *
+ * You can pass NULL as any of the functions, in which case the standard malloc, 
+ * realloc or free will be used.
+ *
+ * @param [in] vmalloc  malloc implementation
+ * @param [in] vrealloc realloc implementation
+ * @param [in] free     free implementation
+ */
+void 
+vktor_set_memory_handlers(vktor_malloc vmallocf, vktor_realloc vreallocf, 
+                          vktor_free vfreef)
+{
+	vmalloc  = (vmallocf  == NULL ? malloc  : vmallocf);
+	vrealloc = (vreallocf == NULL ? realloc : vreallocf);
+	vfree    = (vfreef    == NULL ? free    : vfreef);
+}
+
+/**
  * @brief Initialize a new parser 
  * 
  * Initialize and return a new parser struct. Will return NULL if memory can't 
@@ -1108,7 +1172,7 @@ vktor_parser_init(int max_nest)
 {
 	vktor_parser *parser;
 	
-	if ((parser = malloc(sizeof(vktor_parser))) == NULL) {
+	if ((parser = vmalloc(sizeof(vktor_parser))) == NULL) {
 		return NULL;
 	}
 		
@@ -1122,10 +1186,14 @@ vktor_parser_init(int max_nest)
 	parser->expected   = VKTOR_VALUE_TOKEN;
 
 	// set up nesting stack
-	parser->nest_stack   = calloc(sizeof(vktor_struct), max_nest);
+	parser->nest_stack   = vmalloc(sizeof(vktor_struct) * max_nest);
 	parser->nest_ptr     = 0;
 	parser->max_nest     = max_nest;
-			
+	
+#ifdef BYTECOUNTER
+	parser->bytecounter = 0;
+#endif
+
 	return parser;
 }
 
@@ -1278,19 +1346,19 @@ vktor_parse(vktor_parser *parser, vktor_error **error)
 					
 					// Expecting: any value or array end
 					parser->expected = VKTOR_VALUE_TOKEN | 
-					                     VKTOR_T_ARRAY_END;
+					                   VKTOR_T_ARRAY_END;
 					
 					done = 1;
 					break;
 					
 				case '"':
-					if (! parser->expected & (VKTOR_T_STRING | 
-					                          VKTOR_T_OBJECT_KEY)) {
+					if (! (parser->expected & (VKTOR_T_STRING | 
+					                           VKTOR_T_OBJECT_KEY))) {
 						set_error_unexpected_c(error, c);
 						return VKTOR_ERROR;
 					}
-					
-					parser->buffer->ptr++;	 
+				
+					INCREMENT_BUFFER_PTR(parser);
 					
 					if (parser->expected & VKTOR_T_OBJECT_KEY) {
 						return parser_read_objkey_token(parser, error);
@@ -1301,7 +1369,7 @@ vktor_parse(vktor_parser *parser, vktor_error **error)
 					break;
 				
 				case ',':
-					if (! parser->expected & VKTOR_C_COMMA) {
+					if (! (parser->expected & VKTOR_C_COMMA)) {
 						set_error_unexpected_c(error, c);
 						return VKTOR_ERROR;
 					}
@@ -1324,7 +1392,7 @@ vktor_parse(vktor_parser *parser, vktor_error **error)
 					break;
 				
 				case ':':
-					if (! parser->expected & VKTOR_C_COLON) {
+					if (! (parser->expected & VKTOR_C_COLON)) {
 						set_error_unexpected_c(error, c);
 						return VKTOR_ERROR;
 					}
@@ -1403,7 +1471,7 @@ vktor_parse(vktor_parser *parser, vktor_error **error)
 					
 				case 't':
 					// true?
-					if (! parser->expected & VKTOR_T_TRUE) {
+					if (! (parser->expected & VKTOR_T_TRUE)) {
 						set_error_unexpected_c(error, c);
 						return VKTOR_ERROR;
 					}
@@ -1413,7 +1481,7 @@ vktor_parse(vktor_parser *parser, vktor_error **error)
 					
 				case 'f':
 					// false?
-					if (! parser->expected & VKTOR_T_FALSE) {
+					if (! (parser->expected & VKTOR_T_FALSE)) {
 						set_error_unexpected_c(error, c);
 						return VKTOR_ERROR;
 					}
@@ -1423,7 +1491,7 @@ vktor_parse(vktor_parser *parser, vktor_error **error)
 
 				case 'n':
 					// null?
-					if (! parser->expected & VKTOR_T_NULL) {
+					if (! (parser->expected & VKTOR_T_NULL)) {
 						set_error_unexpected_c(error, c);
 						return VKTOR_ERROR;
 					}
@@ -1460,7 +1528,7 @@ vktor_parse(vktor_parser *parser, vktor_error **error)
 					break;
 			}
 			
-			parser->buffer->ptr++;
+			INCREMENT_BUFFER_PTR(parser);
 			if (done) break;
 		}
 		
@@ -1672,7 +1740,7 @@ vktor_get_value_str_copy(vktor_parser *parser, char **val, vktor_error **error)
 		return 0;
 	}
 	
-	str = malloc(sizeof(char) * (parser->token_size + 1));
+	str = vmalloc(sizeof(char) * (parser->token_size + 1));
 	str = memcpy(str, parser->token_value, parser->token_size);
 	str[parser->token_size] = '\0';
 	
@@ -1698,12 +1766,12 @@ vktor_parser_free(vktor_parser *parser)
 	}
 	
 	if (parser->token_value != NULL) {
-		free(parser->token_value);
+		vfree(parser->token_value);
 	}
 	
-	free(parser->nest_stack);
+	vfree(parser->nest_stack);
 	
-	free(parser);
+	vfree(parser);
 }
 
 /**
@@ -1717,10 +1785,10 @@ void
 vktor_error_free(vktor_error *err)
 {
 	if (err->message != NULL) {
-		free(err->message);
+		vfree(err->message);
 	}
 	
-	free(err);
+	vfree(err);
 }
 
 /** @} */ // end of external API

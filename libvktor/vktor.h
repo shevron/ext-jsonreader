@@ -110,6 +110,25 @@ typedef enum {
 	VKTOR_ERR_INTERNAL_ERR      /**< internal parser error */
 } vktor_errcode;
 
+/** 
+ * Memory allocation and management function pointers 
+ */
+
+/**
+ * malloc implementation pointer 
+ */
+typedef void *(*vktor_malloc)  (size_t size);
+
+/**
+ * realloc implementation pointer
+ */
+typedef void *(*vktor_realloc) (void *pointer, size_t size);
+
+/**
+ * free implementation pointer
+ */
+typedef void  (*vktor_free)    (void *pointer);
+
 /**
  * Error structure, signifying the error code and error message
  * 
@@ -306,6 +325,24 @@ int vktor_get_value_str(vktor_parser *parser, char **val, vktor_error **error);
  *         value of error)
  */
 int vktor_get_value_str_copy(vktor_parser *parser, char **val, vktor_error **error);
+
+/**
+ * @brief Set memory handling function implementation
+ *
+ * Allows one to set alternative implementations of malloc, realloc and free. If 
+ * set, the alternative implementations will be used by vktor globally to manage
+ * memory. Since this has global effect it is recommended to set this once before
+ * doing anything with vktor, and not to change this.
+ *
+ * You can pass NULL as any of the functions, in which case the standard malloc, 
+ * realloc or free will be used.
+ *
+ * @param [in] vmalloc  malloc implementation
+ * @param [in] vrealloc realloc implementation
+ * @param [in] free     free implementation
+ */
+void vktor_set_memory_handlers(vktor_malloc vmallocf, vktor_realloc vreallocf, 
+                               vktor_free vfreef);
 
 /** @} */ // end of external API
 

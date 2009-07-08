@@ -3,7 +3,7 @@ Test that the value property is null for non-value tokens
 --SKIPIF--
 <?php if (!extension_loaded("jsonreader")) print "skip"; ?>
 --STDIN--
-[{null}]
+[{"foo":null}]
 --FILE--
 <?php
 $rdr = new JSONReader();
@@ -17,6 +17,7 @@ $rdr->close();
 NULL
 NULL
 NULL
+string(3) "foo"
 NULL
 NULL
 NULL
