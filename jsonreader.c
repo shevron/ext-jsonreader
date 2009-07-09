@@ -73,6 +73,34 @@ enum {
 
 /* }}} */
 
+/* {{{ Memory management functions wrapping emalloc etc. */
+
+/* {{{ jsr_malloc
+   Wrapper for PHP's emalloc, passed to libvktor as malloc alternative */
+static void *jsr_malloc(size_t size)
+{
+	return emalloc(size);
+}
+/* }}} */
+
+/* {{{ jsr_realloc
+   Wrapper for PHP's erealloc, passed to libvktor as realloc alternative */
+static void *jsr_realloc(void *ptr, size_t size)
+{
+	return erealloc(ptr, size);
+}
+/* }}} */
+
+/* {{{ jsr_free 
+   Wrapper for PHP's efree, passed to libvktor as free alternative */
+static void jsr_free(void *ptr)
+{
+	efree(ptr);
+}
+/* }}} */
+
+/* }}} */
+
 /* {{{ jsonreader_handle_error
    Handle a parser error - for now generate an E_WARNING, in the future this might
    also do things like throw an exception or use an internal error handler */
@@ -440,7 +468,7 @@ static int jsonreader_read_more_data(jsonreader_object *obj TSRMLS_DC)
 	vktor_status  status;
 	vktor_error  *err;
 	
-	buffer = malloc(sizeof(char) * obj->read_buffer);
+	buffer = emalloc(sizeof(char) * obj->read_buffer);
 
 	read = php_stream_read(obj->stream, buffer, obj->read_buffer);
 	if (read <= 0) {
@@ -781,6 +809,11 @@ PHP_MINIT_FUNCTION(jsonreader)
 	INIT_CLASS_ENTRY(ce, "JSONReaderException", NULL);
 	jsonreader_exception_ce = zend_register_internal_class_ex(&ce, 
 		zend_exception_get_default(TSRMLS_C), NULL TSRMLS_CC);
+
+	/** 
+	 * Set libvktor to use PHP memory allocation functions
+	 */
+	vktor_set_memory_handlers(jsr_malloc, jsr_realloc, jsr_free);
 
 	return SUCCESS;
 }
