@@ -1,8 +1,6 @@
 TODO for the JSONReader PHP extension
 -------------------------------------
 
-- FIXME: malloc() is used to allocate the stream read buffer
-
 - Allow reading of overflowing integer or float values as strings 
 
 - Implement ability to parse a string buffer and not only a stream
@@ -20,7 +18,4 @@ Additions that will require improvements to libvktor:
   - Out of the current nesting level ("step out")
 
 - Add support for additional Unicode encodings (input or output)
-
-- Internal: allow changing the memory allocation functions for better
-  embedding in PHP 
 
