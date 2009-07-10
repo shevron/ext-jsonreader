@@ -570,8 +570,8 @@ parser_read_string(vktor_parser *parser, vktor_error **error)
 				
 			} else if (parser->expected & (VKTOR_C_UNIC1 | 
 			                               VKTOR_C_UNIC2 | 
-										   VKTOR_C_UNIC3 | 
-										   VKTOR_C_UNIC4)) {
+						       VKTOR_C_UNIC3 | 
+						       VKTOR_C_UNIC4)) {
 				
 				// Read an escaped unicode sequence
 				c = vktor_unicode_hex_to_int((unsigned char) c);
@@ -1181,6 +1181,7 @@ vktor_parser_init(int max_nest)
 	parser->token_type   = VKTOR_T_NONE;
 	parser->token_value  = NULL;
 	parser->token_resume = 0;
+	parser->unicode_c    = 0;
 	
 	// set expectated tokens
 	parser->expected   = VKTOR_VALUE_TOKEN;
