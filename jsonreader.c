@@ -624,12 +624,12 @@ PHP_METHOD(jsonreader, open)
 	switch(Z_TYPE_P(arg)) {
 		case IS_STRING:
 			tmp_stream = php_stream_open_wrapper(Z_STRVAL_P(arg), "r", options, NULL);
-			intern->close_stream = true;
+			intern->close_stream = 1;
 			break;
 
 		case IS_RESOURCE:
 			php_stream_from_zval(tmp_stream, &arg);
-			intern->close_stream = false;
+			intern->close_stream = 0;
 			break;
 
 		default:
