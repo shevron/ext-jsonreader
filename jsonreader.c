@@ -203,7 +203,12 @@ zval* jsonreader_read_property(zval *object, zval *member, int type TSRMLS_DC)
 		}
 	} else {
 		std_hnd = zend_get_std_object_handlers();
+#if PHP_VERSION_ID < 50399
 		retval = std_hnd->read_property(object, member, type TSRMLS_CC);
+#else
+		retval = std_hnd->read_property(object, member, type TSRMLS_CC, NULL);
+#endif
+
 	}
 
 	if (member == &tmp_member) { 
@@ -240,7 +245,11 @@ void jsonreader_write_property(zval *object, zval *member, zval *value TSRMLS_DC
 		jph->write_func(intern, value TSRMLS_CC);
 	} else {
 		std_hnd = zend_get_std_object_handlers();
+#if PHP_VERSION_ID < 50399
 		std_hnd->write_property(object, member, value TSRMLS_CC);
+#else
+		std_hnd->write_property(object, member, value TSRMLS_CC, NULL);
+#endif
 	}
 
 	if (member == &tmp_member) { 
@@ -428,8 +437,13 @@ static zend_object_value jsonreader_object_new(zend_class_entry *ce TSRMLS_DC)
 	intern->errmode = ERRMODE_PHPERR;
 
 	zend_object_std_init(&(intern->std), ce TSRMLS_CC);
+  
+#if PHP_VERSION_ID < 50399
 	zend_hash_copy(intern->std.properties, &ce->default_properties, 
 		(copy_ctor_func_t) zval_add_ref, NULL, sizeof(zval *));
+#else
+  object_properties_init(&(intern->std), ce);
+#endif
 
 	retval.handle = zend_objects_store_put(intern, 
 		(zend_objects_store_dtor_t) zend_objects_destroy_object, 
