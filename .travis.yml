@@ -1,4 +1,6 @@
+#
 # build and test ext-jsonreader on Travis CI - https://travis-ci.org/
+#
 
 language: php
 php:
