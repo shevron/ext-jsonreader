@@ -36,7 +36,7 @@ static zend_object_handlers  jsonreader_obj_handlers;
 static zend_class_entry     *jsonreader_ce;
 static zend_class_entry     *jsonreader_exception_ce;
 
-const HashTable jsonreader_prop_handlers;
+const HashTable *jsonreader_prop_handlers;
 
 typedef struct _jsonreader_object { 
 	zend_object   std;
@@ -165,14 +165,18 @@ static void jsonreader_register_prop_handler(char *name, jsonreader_read_t read_
 	jph.read_func  = read_func ? read_func : jsonreader_read_na;
 	jph.write_func = write_func ? write_func : jsonreader_write_na;
 
-	zend_hash_add((HashTable *) &jsonreader_prop_handlers, name, strlen(name) + 1, &jph, 
+	zend_hash_add((HashTable *)jsonreader_prop_handlers, name, strlen(name) + 1, &jph,
 		sizeof(jsonreader_prop_handler), NULL);
 }
 /* }}} */
 
 /* {{{ jsonreader_read_property
    Property read handler */
+#if PHP_VERSION_ID < 50399
 zval* jsonreader_read_property(zval *object, zval *member, int type TSRMLS_DC)
+#else
+zval* jsonreader_read_property(zval *object, zval *member, int type TSRMLS_DC, const struct _zend_literal *zl)
+#endif
 {
 	jsonreader_object       *intern;
 	zval                     tmp_member;
@@ -191,7 +195,7 @@ zval* jsonreader_read_property(zval *object, zval *member, int type TSRMLS_DC)
 	ret = FAILURE;
 	intern = (jsonreader_object *) zend_objects_get_address(object TSRMLS_CC);
 
-	ret = zend_hash_find(&jsonreader_prop_handlers, Z_STRVAL_P(member), 
+	ret = zend_hash_find((HashTable *)jsonreader_prop_handlers, Z_STRVAL_P(member),
 		Z_STRLEN_P(member) + 1, (void **) &jph);
 
 	if (ret == SUCCESS) {
@@ -220,7 +224,11 @@ zval* jsonreader_read_property(zval *object, zval *member, int type TSRMLS_DC)
 /* }}} */
 
 /* {{{ jsonreader_write_property */
+#if PHP_VERSION_ID < 50399
 void jsonreader_write_property(zval *object, zval *member, zval *value TSRMLS_DC)
+#else
+void jsonreader_write_property(zval *object, zval *member, zval *value TSRMLS_DC, const struct _zend_literal *zl)
+#endif
 {
 	jsonreader_object       *intern;
 	zval                     tmp_member;
@@ -238,7 +246,7 @@ void jsonreader_write_property(zval *object, zval *member, zval *value TSRMLS_DC
 	ret = FAILURE;
 	intern = (jsonreader_object *) zend_objects_get_address(object TSRMLS_CC);
 
-	ret = zend_hash_find(&jsonreader_prop_handlers, Z_STRVAL_P(member), 
+	ret = zend_hash_find((HashTable *)jsonreader_prop_handlers, Z_STRVAL_P(member),
 		Z_STRLEN_P(member) + 1, (void **) &jph);
 
 	if (ret == SUCCESS) {
@@ -767,13 +775,14 @@ PHP_MINIT_FUNCTION(jsonreader)
 	zend_class_entry ce;
 
 	REGISTER_INI_ENTRIES();
-
+    
 	/**
 	 * Declare the JSONReader class 
 	 */
 
 	/* Set object handlers */
-	zend_hash_init((HashTable *) &jsonreader_prop_handlers, 0, NULL, NULL, 1);
+	ALLOC_HASHTABLE(jsonreader_prop_handlers);
+	zend_hash_init((HashTable *)jsonreader_prop_handlers, 0, NULL, NULL, 0);
 	memcpy(&jsonreader_obj_handlers, zend_get_std_object_handlers(), 
 		sizeof(zend_object_handlers));
 	jsonreader_obj_handlers.read_property = jsonreader_read_property;
@@ -837,8 +846,11 @@ PHP_MINIT_FUNCTION(jsonreader)
 PHP_MSHUTDOWN_FUNCTION(jsonreader)
 {
 	UNREGISTER_INI_ENTRIES();
-	zend_hash_destroy((HashTable *) &jsonreader_prop_handlers);
-	return SUCCESS;
+    
+//    zend_hash_destroy((HashTable *)jsonreader_prop_handlers);
+//    FREE_HASHTABLE((void *)jsonreader_prop_handlers);
+    
+    return SUCCESS;
 }
 /* }}} */
 
