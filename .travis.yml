@@ -16,4 +16,4 @@ script:
   - phpize
   - ./configure --enable-shared
   - make
-  - make test
+  - php run-tests.php
