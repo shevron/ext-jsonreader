@@ -96,68 +96,63 @@ $reader->close();
 The JSONReader class provides the following methods:
 
 
-* ```php
+```php
 bool JSONReader::open(mixed $URI)
 ```
 
-  Open a stream to read from, or set an open stream as the stream to read 
-  from. 
+Open a stream to read from, or set an open stream as the stream to read from. 
 
-  $URI can be either a string representing any valid PHP stream URI (such 
-  as 'json.txt', 'http://example.com/path/json' or 'php://stdin') or an
-  already-open stream resource - this is useful for example if you need to 
-  read the HTTP headers from an open TCP stream before passing the HTTP 
-  body to the parser, or if you need to set up some stream context or 
-  filters before parsing it. 
+`$URI` can be either a string representing any valid PHP stream URI (such 
+as 'json.txt', 'http://example.com/path/json' or 'php://stdin') or an
+already-open stream resource - this is useful for example if you need to 
+read the HTTP headers from an open TCP stream before passing the HTTP 
+body to the parser, or if you need to set up some stream context or 
+filters before parsing it. 
 
-  Returns TRUE on success, FALSE otherwise. 
+Returns TRUE on success, FALSE otherwise. 
   
-* ```php
+```php
 bool JSONReader::close();
 ```
 
-  Close the open stream attached to the parser. Note that if you do not call
-  this method, the stream will be automatically closed when the object is 
-  destroyed.
+Close the open stream attached to the parser. Note that if you do not call this method, the stream will be automatically closed when the object is destroyed.
 
-* ```php
+```php
 bool JSONReader::read();
 ```
 
-  Read the next JSON token. Returns TRUE as long as there is something to read,
-  or FALSE when reading is done or when an error occured. 
+Read the next JSON token. Returns TRUE as long as there is something to read, or FALSE when reading is done or when an error occured. 
 
- After calling JSONReader::read() you can check the token type, value or other
+After calling JSONReader::read() you can check the token type, value or other
 properties using one of the object properties desctibed below. 
 
-  * ```php
-  int JSONReader::tokenType 
-  ```
-    The type of the current token. NULL if there is no current token, or one of
-    the token constants listed below. 
+```php
+int JSONReader::tokenType 
+```
 
-  * ```php
-  mixed JSONReader::value
-  ```
-    The value of the current token, if it has one (not all tokens have a value).
-    Will be NULL if there is no current token or if the token has no value. 
-    Otherwise, may contain NULL, a boolean, a string, an integer or a 
-    floating-point number. 
+The type of the current token. NULL if there is no current token, or one of the token constants listed below. 
 
-  * ```php
-  int JSONReader::currentStruct
-  ```
+```php
+mixed JSONReader::value
+```
+
+The value of the current token, if it has one (not all tokens have a value). <br>
+Will be NULL if there is no current token or if the token has no value. <br>
+Otherwise, may contain NULL, a boolean, a string, an integer or a floating-point number. 
+
+```php
+int JSONReader::currentStruct
+```
   
-    The type of the current JSON structure we are in. This might be one of 
-    JSONReader::ARRAY or JSONReader::OBJECT - or NULL if we are in neither. 
+The type of the current JSON structure we are in. This might be one of `JSONReader::ARRAY` or `JSONReader::OBJECT` - or NULL if we are in neither. 
 
-  * ```php
-  int JSONReader::currentDepth
-  ```
-  
-    The current nesting level inside the JSON data. 0 means root level.
+```php
+int JSONReader::currentDepth
+```
+ 
+The current nesting level inside the JSON data. 0 means root level.
 
- The following constants represent the different JSON token types:
+The following constants represent the different JSON token types:
 
 ```php
   JSONReader::NULL         - a JSON 'null' (this does not equal a PHP NULL)
