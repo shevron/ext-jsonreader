@@ -12,9 +12,10 @@ php:
   - 'nightly'
 
 env:
-  - NO_INTERACTION=1 REPORT_EXIT_STATUS=1 TEST_PHP_EXECUTABLE=php
+  - NO_INTERACTION=1 REPORT_EXIT_STATUS=1
 
 script:
   - phpize
   - ./configure --enable-shared
-  - make test
+  - make
+  - php run-tests.php -q -d extension=`pwd`/.libs/jsonreader.so -p `which php` --show-diff
