@@ -9,12 +9,12 @@ php:
   - 5.4
   - 5.5
   - 5.6
+  - 'nightly'
 
 env:
-  - NO_INTERACTION="1" REPORT_EXIT_STATUS="1"
+  - NO_INTERACTION=1 REPORT_EXIT_STATUS=1 TEST_PHP_EXECUTABLE=php
 
 script:
   - phpize
   - ./configure --enable-shared
-  - make
   - make test
