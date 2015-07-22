@@ -9,6 +9,7 @@ php:
   - 5.4
   - 5.5
   - 5.6
+  - 5.7
 
 env:
   - NO_INTERACTION=1 REPORT_EXIT_STATUS=1 TEST_PHP_EXECUTABLE=php
@@ -16,5 +17,4 @@ env:
 script:
   - phpize
   - ./configure --enable-shared
-  - make
-  - php run-tests.php
+  - make test
