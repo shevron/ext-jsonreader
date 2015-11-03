@@ -62,18 +62,21 @@ PHP_METHOD(jsonreader, open);
 PHP_METHOD(jsonreader, __construct);
 
 typedef struct _jsonreader_object {
-	zend_object   std;
 	php_stream   *stream;
 	void         *internal_stream;
 	vktor_parser *parser;
 	long          max_depth;
 	long          read_buffer;
 	int           errmode;
+	zend_object   std;
 } jsonreader_object;
 
+#define FETCH_JSON_OBJECT_FROM_OBJ(obj) jsonreader_object *intern = (jsonreader_object *)((char *)(obj) - XtOffsetOf(struct _jsonreader_object, std));
+#define FETCH_JSON_OBJECT_FROM_ZV(obj) FETCH_JSON_OBJECT_FROM_OBJ(Z_OBJ_P(obj))
+#define FETCH_JSON_OBJECT FETCH_JSON_OBJECT_FROM_ZV(getThis())
+
 #define JSONREADER_REG_CLASS_CONST_L(name, value) \
-	zend_declare_class_constant_long(jsonreader_ce, name, sizeof(name) - 1, \
-	(long) value TSRMLS_CC)
+	zend_declare_class_constant_long(jsonreader_ce, name, strlen(name), (long) value)
 
 #define JSONREADER_VALUE_TOKEN VKTOR_T_NULL  | \
 							   VKTOR_T_TRUE  | \
@@ -93,8 +96,8 @@ enum {
 	ERRMODE_INTERN
 };
 
-typedef int (*jsonreader_read_t)  (jsonreader_object *obj, zval **retval TSRMLS_DC);
-typedef int (*jsonreader_write_t) (jsonreader_object *obj, zval *newval TSRMLS_DC);
+typedef int (*jsonreader_read_t)  (jsonreader_object *obj, zval *retval);
+typedef int (*jsonreader_write_t) (jsonreader_object *obj, zval *newval);
 
 typedef struct _jsonreader_prop_handler {
 	jsonreader_read_t   read_func;
