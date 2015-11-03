@@ -21,6 +21,8 @@
 #ifndef PHP_JSONREADER_H
 #define PHP_JSONREADER_H
 
+#include "libvktor/vktor.h"
+
 extern zend_module_entry jsonreader_module_entry;
 #define phpext_jsonreader_ptr &jsonreader_module_entry
 
@@ -29,31 +31,75 @@ extern zend_module_entry jsonreader_module_entry;
 #elif defined(__GNUC__) && __GNUC__ >= 4
 #	define PHP_JSONREADER_API __attribute__ ((visibility("default")))
 #else
-#	define PHP_JSONREADER_API
+#define PHP_JSONREADER_API
+zend_module_entry *get_module(void);
 #endif
 
 #ifdef ZTS
 #include "TSRM.h"
 #endif
 
-PHP_MINIT_FUNCTION(jsonreader);
-PHP_MSHUTDOWN_FUNCTION(jsonreader);
-PHP_MINFO_FUNCTION(jsonreader);
+#define JSONREADER_DEFAULT_MAX_DEPTH       64
+#define JSONREADER_DEFAULT_MAX_READ_BUFFER 4096
+#define STRINGIFY(x) #x
+#define XSTRINGIFY(a) STRINGIFY(a)
 
 ZEND_BEGIN_MODULE_GLOBALS(jsonreader)
 	long  max_depth;
 	long  read_buffer;
 ZEND_END_MODULE_GLOBALS(jsonreader)
 
-/* In every utility function you add that needs to use variables 
-   in php_jsonreader_globals, call TSRMLS_FETCH(); after declaring other 
-   variables used by that function, or better yet, pass in TSRMLS_CC
-   after the last function argument and declare your utility function
-   with TSRMLS_DC after the last declared argument.  Always refer to
-   the globals in your function as JSONREADER_G(variable).  You are 
-   encouraged to rename these macros something shorter, see
-   examples in any other php module directory.
-*/
+PHP_MINIT_FUNCTION(jsonreader);
+PHP_GINIT_FUNCTION(jsonreader);
+PHP_MSHUTDOWN_FUNCTION(jsonreader);
+PHP_MINFO_FUNCTION(jsonreader);
+
+extern zend_class_entry *jsonreader_ce;
+
+PHP_METHOD(jsonreader, read);
+PHP_METHOD(jsonreader, close);
+PHP_METHOD(jsonreader, open);
+PHP_METHOD(jsonreader, __construct);
+
+typedef struct _jsonreader_object {
+	zend_object   std;
+	php_stream   *stream;
+	void         *internal_stream;
+	vktor_parser *parser;
+	long          max_depth;
+	long          read_buffer;
+	int           errmode;
+} jsonreader_object;
+
+#define JSONREADER_REG_CLASS_CONST_L(name, value) \
+	zend_declare_class_constant_long(jsonreader_ce, name, sizeof(name) - 1, \
+	(long) value TSRMLS_CC)
+
+#define JSONREADER_VALUE_TOKEN VKTOR_T_NULL  | \
+							   VKTOR_T_TRUE  | \
+							   VKTOR_T_FALSE | \
+							   VKTOR_T_INT   | \
+							   VKTOR_T_FLOAT | \
+							   VKTOR_T_STRING
+
+/* {{{ attribute keys and possible values */
+enum {
+	ATTR_MAX_DEPTH = 1,
+	ATTR_READ_BUFF,
+	ATTR_ERRMODE,
+
+	ERRMODE_PHPERR,
+	ERRMODE_EXCEPT,
+	ERRMODE_INTERN
+};
+
+typedef int (*jsonreader_read_t)  (jsonreader_object *obj, zval **retval TSRMLS_DC);
+typedef int (*jsonreader_write_t) (jsonreader_object *obj, zval *newval TSRMLS_DC);
+
+typedef struct _jsonreader_prop_handler {
+	jsonreader_read_t   read_func;
+	jsonreader_write_t  write_func;
+} jsonreader_prop_handler;
 
 #ifdef ZTS
 #define JSONREADER_G(v) TSRMG(jsonreader_globals_id, zend_jsonreader_globals *, v)
