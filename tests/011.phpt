@@ -16,5 +16,5 @@ $rdr->close();
 --EXPECTF--
 - %d
 
-Warning: JSONReader::read(): parser error [#%d]: Unexpected character in input: '1' (0x31) in %s on line %d
+Warning: JSONReader::read(): parser error [#%d]: [%s] Unexpected character in input: '1' (0x31) in %s on line %d
 

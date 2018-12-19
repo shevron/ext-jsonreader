@@ -21,5 +21,5 @@ $rdr->close();
 ?>
 --EXPECTF--
 - %d
-EX: %d Unexpected character in input: '1' (0x31)
+EX: %d [%s] Unexpected character in input: '1' (0x31)
 
